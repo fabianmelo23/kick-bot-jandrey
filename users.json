@@ -1,0 +1,24 @@
+{
+  "jandreytv": {
+    "vida": 100,
+    "fuerza": 5,
+    "defensa": 3,
+    "agilidad": 4,
+    "velocidad": 2,
+    "nivel": 1,
+    "xp": 55,
+    "avatar": "/overlay/avatar.png",
+    "puntos": 0
+  },
+  "simpeoalaquesita": {
+    "vida": 100,
+    "fuerza": 3,
+    "defensa": 3,
+    "agilidad": 3,
+    "velocidad": 3,
+    "nivel": 1,
+    "xp": 0,
+    "avatar": "/overlay/avatar.png",
+    "puntos": 0
+  }
+}
