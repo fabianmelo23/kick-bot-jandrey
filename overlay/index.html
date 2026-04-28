@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
+
+<style>
+body {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.container {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+}
+
+/* BARRAS */
+.bar-container {
+    position: absolute;
+    top: 130px;
+    width: 260px;
+}
+
+.left-bar { left: 650px; }
+.right-bar { right: 650px; }
+
+.name {
+    margin-bottom: 6px;
+    font-size: 26px;
+    color: white;
+    font-weight: bold;
+}
+
+.left-bar .name { text-align: left; }
+.right-bar .name { text-align: right; }
+
+.bar {
+    width: 100%;
+    height: 26px;
+    background: #111;
+    border-radius: 12px;
+}
+
+.hp {
+    height: 100%;
+    width: 100%;
+    border-radius: 12px;
+    transition: width 0.3s, background 0.3s;
+}
+
+/* 🔥 AVATARES MÁS GRANDES */
+.player {
+    position: absolute;
+    top: 230px;
+    width: 260px; /* 🔥 MÁS GRANDE */
+    transition: all 0.5s ease;
+}
+
+.left { left: 650px; }
+.right { right: 650px; transform: scaleX(-1); }
+
+/* ATAQUE */
+.attack-left {
+    transform: translateX(110px);
+}
+
+.attack-right {
+    transform: translateX(-110px) scaleX(-1);
+}
+
+/* 🔥 MUERTE */
+.fade-out {
+    opacity: 0;
+}
+
+/* 🔥 GANADOR CENTRO */
+.winner-center {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) scale(1.4) !important;
+    top: 300px !important;
+}
+
+/* DAÑO */
+.damage {
+    position: absolute;
+    color: red;
+    font-size: 28px;
+    animation: float 1s forwards;
+}
+
+@keyframes float {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-60px); }
+}
+
+/* TEXTO GANADOR */
+#winner {
+    position: absolute;
+    top: 210px;
+    width: 100%;
+    text-align: center;
+    font-size: 28px;
+    color: gold;
+    display: none;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="bar-container left-bar">
+    <div id="name1" class="name"></div>
+    <div class="bar"><div id="hp1" class="hp"></div></div>
+</div>
+
+<div class="bar-container right-bar">
+    <div id="name2" class="name"></div>
+    <div class="bar"><div id="hp2" class="hp"></div></div>
+</div>
+
+<img id="p1" class="player left">
+<img id="p2" class="player right">
+
+<div id="winner"></div>
+
+</div>
+
+<script>
+let lastId = null;
+
+setInterval(async () => {
+    const res = await fetch("/duelo");
+    const data = await res.json();
+
+    if (!data.activo) return;
+
+    const id = JSON.stringify(data);
+    if (id === lastId) return;
+
+    lastId = id;
+    startFight(data);
+}, 500);
+
+async function startFight(d) {
+
+    const p1 = document.getElementById("p1");
+    const p2 = document.getElementById("p2");
+
+    document.getElementById("name1").innerText = d.jugador1;
+    document.getElementById("name2").innerText = d.jugador2;
+
+    p1.src = d.avatar1;
+    p2.src = d.avatar2;
+
+    /* RESET */
+    p1.className = "player left";
+    p2.className = "player right";
+
+    let hp1 = 100;
+    let hp2 = 100;
+
+    const hpBar1 = document.getElementById("hp1");
+    const hpBar2 = document.getElementById("hp2");
+
+    function getColor(hp) {
+        if (hp > 60) return "lime";
+        if (hp > 30) return "yellow";
+        return "red";
+    }
+
+    function updateHP() {
+        hpBar1.style.width = hp1 + "%";
+        hpBar2.style.width = hp2 + "%";
+
+        hpBar1.style.background = getColor(hp1);
+        hpBar2.style.background = getColor(hp2);
+    }
+
+    updateHP();
+    document.getElementById("winner").style.display = "none";
+
+    while (hp1 > 0 && hp2 > 0) {
+
+        await sleep(350);
+
+        const dmg = Math.floor(Math.random() * 12) + 6;
+
+        if (Math.random() < 0.5) {
+
+            p1.classList.add("attack-left");
+
+            hp2 -= dmg;
+            showDamage(p2, dmg);
+
+            setTimeout(() => p1.classList.remove("attack-left"), 200);
+
+        } else {
+
+            p2.classList.add("attack-right");
+
+            hp1 -= dmg;
+            showDamage(p1, dmg);
+
+            setTimeout(() => p2.classList.remove("attack-right"), 200);
+        }
+
+        if (hp1 < 0) hp1 = 0;
+        if (hp2 < 0) hp2 = 0;
+
+        updateHP();
+    }
+
+    const ganador = hp1 <= 0 ? "p2" : "p1";
+    const perdedor = ganador === "p1" ? "p2" : "p1";
+
+    const w = document.getElementById("winner");
+    w.innerText = "🏆 " + (ganador === "p1" ? d.jugador1 : d.jugador2) + " ganó";
+    w.style.display = "block";
+
+    /* 🔥 ANIMACIÓN FINAL */
+    document.getElementById(perdedor).classList.add("fade-out");
+
+    setTimeout(() => {
+        document.getElementById(ganador).classList.add("winner-center");
+    }, 400);
+}
+
+function showDamage(player, dmg) {
+    const rect = player.getBoundingClientRect();
+
+    const el = document.createElement("div");
+    el.className = "damage";
+    el.innerText = "-" + dmg;
+
+    el.style.left = rect.left + "px";
+    el.style.top = rect.top + "px";
+
+    document.body.appendChild(el);
+
+    setTimeout(() => el.remove(), 1000);
+}
+
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
+</script>
+
+</body>
+</html>

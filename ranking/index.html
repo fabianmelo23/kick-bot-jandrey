@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Orbitron', sans-serif;
+    background: linear-gradient(180deg, #0b1a2e, #02070f);
+    color: white;
+    text-align: center;
+}
+
+/* TÍTULO */
+h1 {
+    margin-top: 40px;
+    font-size: 40px;
+    color: gold;
+}
+
+/* CONTENEDOR */
+#ranking {
+    width: 600px;
+    margin: 40px auto;
+}
+
+/* FILA */
+.user {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0.05);
+    margin: 10px 0;
+    padding: 12px 20px;
+    border-radius: 12px;
+    transition: 0.2s;
+}
+
+.user:hover {
+    transform: scale(1.03);
+    background: rgba(255,255,255,0.1);
+}
+
+/* INFO IZQUIERDA */
+.left {
+    display: flex;
+    align-items: center;
+}
+
+/* AVATAR */
+.avatar {
+    width: 50px;
+    height: 50px;
+    margin-right: 15px;
+    border-radius: 10px;
+}
+
+/* NOMBRE */
+.name {
+    font-size: 20px;
+}
+
+/* PUNTOS */
+.points {
+    font-size: 18px;
+    color: lime;
+}
+
+/* TOP 1 */
+.top1 {
+    background: rgba(255,215,0,0.2);
+}
+
+/* TOP 2 */
+.top2 {
+    background: rgba(192,192,192,0.2);
+}
+
+/* TOP 3 */
+.top3 {
+    background: rgba(205,127,50,0.2);
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>🏆 Ranking</h1>
+
+<div id="ranking"></div>
+
+<script>
+async function loadRanking() {
+
+    try {
+        const res = await fetch("/users"); // 🔥 IMPORTANTE (sin localhost)
+        const data = await res.json();
+
+        const container = document.getElementById("ranking");
+        container.innerHTML = "";
+
+        // convertir a array
+        const users = Object.entries(data).map(([name, info]) => ({
+            name,
+            ...info
+        }));
+
+        // ordenar por puntos
+        users.sort((a, b) => (b.puntos || 0) - (a.puntos || 0));
+
+        users.forEach((user, index) => {
+
+            const div = document.createElement("div");
+
+            div.className = "user";
+
+            if (index === 0) div.classList.add("top1");
+            if (index === 1) div.classList.add("top2");
+            if (index === 2) div.classList.add("top3");
+
+            div.innerHTML = `
+                <div class="left">
+                    <img class="avatar" src="${user.avatar || '/overlay/avatar.png'}">
+                    <div class="name">#${index + 1} ${user.name}</div>
+                </div>
+                <div class="points">${user.puntos || 0} pts</div>
+            `;
+
+            container.appendChild(div);
+        });
+
+    } catch (err) {
+        console.error("Error cargando ranking:", err);
+    }
+}
+
+loadRanking();
+</script>
+
+</body>
+</html>
