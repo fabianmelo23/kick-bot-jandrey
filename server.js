@@ -7,12 +7,17 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-/* 🔥 SERVIR ARCHIVOS */
+/* 🔥 ESTÁTICOS */
 app.use("/overlay", express.static(path.join(__dirname, "overlay")));
 app.use("/panel", express.static(path.join(__dirname, "panel")));
-app.use("/", express.static(path.join(__dirname, "ranking"))); // tu ranking
+app.use("/ranking", express.static(path.join(__dirname, "ranking"))); // 👈 importante
 
-/* 🔥 RUTA USERS (LA QUE FALTABA) */
+/* 🔥 RAÍZ (LO QUE FALTABA) */
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "ranking", "index.html"));
+});
+
+/* 🔥 USERS */
 app.get("/users", (req, res) => {
     try {
         const filePath = path.join(__dirname, "data", "users.json");
@@ -22,16 +27,15 @@ app.get("/users", (req, res) => {
         }
 
         const users = JSON.parse(fs.readFileSync(filePath, "utf8"));
-
         res.json(users);
 
     } catch (err) {
-        console.error("Error leyendo users:", err);
+        console.error(err);
         res.status(500).json({ error: "Error leyendo users" });
     }
 });
 
-/* 🔥 RUTA DUELO (ya la tienes pero la dejamos bien) */
+/* 🔥 DUELO */
 let duelo = {};
 
 app.get("/duelo", (req, res) => {
