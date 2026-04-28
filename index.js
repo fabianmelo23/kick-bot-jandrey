@@ -1,119 +1,166 @@
-const WebSocket = require("ws");
+const puppeteer = require("puppeteer-extra");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
 const axios = require("axios");
 
-// 🔗 TU API DE RENDER
-const API_URL = "https://kick-bot-jandrey-2.onrender.com/update";
-const RANK_URL = "https://kick-bot-jandrey-2.onrender.com";
+puppeteer.use(StealthPlugin());
 
-const CHANNEL_ID = "3086781";
-
+const URL = "https://kick.com/jandreytv";
 const DATA_FILE = "./data/users.json";
+const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
+
+const DEFAULT_AVATAR = "http://localhost:3000/overlay/avatar.png";
 
 let users = {};
-let cooldown = {};
+let duelCooldown = {};
 
-// Cargar datos
 if (fs.existsSync(DATA_FILE)) {
     users = JSON.parse(fs.readFileSync(DATA_FILE));
 }
 
-// Guardar datos local
 function saveData() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
 }
 
-// 🔥 SINCRONIZAR CON RENDER
-async function syncData() {
-    try {
-        await axios.post(API_URL, users);
-        console.log("📡 Sync con Render OK");
-    } catch (err) {
-        console.log("❌ Error sync:", err.message);
+function ensureUser(username) {
+    if (!users[username]) {
+        users[username] = {
+            puntos: 0,
+            xp: 0,
+            nivel: 1,
+            avatar: DEFAULT_AVATAR
+        };
+        saveData();
     }
 }
 
-// Sistema de puntos
 function addPoints(username, amount) {
-    if (!users[username]) {
-        users[username] = { puntos: 0, xp: 0, nivel: 1 };
-    }
-
+    ensureUser(username);
     users[username].puntos += amount;
     users[username].xp += amount;
-
-    // subir nivel cada 100 xp
-    if (users[username].xp >= 100) {
-        users[username].nivel++;
-        users[username].xp = 0;
-        console.log(`✨ ${username} subió a nivel ${users[username].nivel}`);
-    }
-
     saveData();
-    syncData(); // 🔥 AQUÍ SE ACTUALIZA ONLINE
 }
 
-// ⚔️ DUELO
-function duel(user1, user2) {
+function getKey(user1, user2) {
+    return [user1, user2].sort().join("_");
+}
+
+async function limpiarPestanas(browser, mainPage) {
+    const pages = await browser.pages();
+    for (const p of pages) {
+        if (p !== mainPage) await p.close();
+    }
+    await mainPage.bringToFront();
+}
+
+async function sendMessage(page, text) {
+    try {
+        const input = await page.$('[contenteditable="true"]');
+        if (!input) {
+            console.log("❌ No se encontró input chat");
+            return;
+        }
+
+        await input.click();
+        await page.keyboard.type(text);
+        await page.keyboard.press("Enter");
+
+        console.log("✅ Mensaje enviado:", text);
+
+    } catch (err) {
+        console.log("❌ Error enviando mensaje");
+    }
+}
+
+async function duel(page, user1, user2, browser) {
+    await limpiarPestanas(browser, page);
+
+    const now = Date.now();
+    const key = getKey(user1, user2);
+
+    if (duelCooldown[key] && now - duelCooldown[key] < COOLDOWN_TIME) {
+        const tiempo = Math.ceil((COOLDOWN_TIME - (now - duelCooldown[key])) / 60000);
+        await sendMessage(page, `⏳ ${user1} y ${user2} deben esperar ${tiempo} min`);
+        return;
+    }
+
+    duelCooldown[key] = now;
+
+    ensureUser(user1);
+    ensureUser(user2);
+
     const winner = Math.random() < 0.5 ? user1 : user2;
     const loser = winner === user1 ? user2 : user1;
 
     addPoints(winner, 5);
-    addPoints(loser, 1);
 
-    console.log(`🏆 ${winner} ganó vs ${loser}`);
+    await axios.post("http://localhost:3000/duelo", {
+        jugador1: user1,
+        jugador2: user2,
+        ganador: winner,
+        avatar1: users[user1].avatar,
+        avatar2: users[user2].avatar
+    });
+
+    await sendMessage(page, `🏆 ${winner} ganó vs ${loser} (+5 pts)`);
+
+    console.log("⚔️ Duelo ejecutado:", user1, "vs", user2);
 }
 
-// 🔌 WEBSOCKET
-const ws = new WebSocket("wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=7.0.6&flash=false");
+// ---------------- MAIN ----------------
+(async () => {
+    console.log("🔥 Iniciando bot...");
 
-ws.on("open", () => {
-    console.log("🔥 Bot conectado a Kick");
+    const browser = await puppeteer.launch({
+        headless: false,
+        executablePath: "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+        userDataDir: "C:\\Users\\SantiMichell\\AppData\\Local\\BraveSoftware\\Brave-Browser\\User Data",
+        args: ["--profile-directory=Default"]
+    });
 
-    ws.send(JSON.stringify({
-        event: "pusher:subscribe",
-        data: {
-            channel: `chatrooms.${CHANNEL_ID}.v2`
-        }
-    }));
-});
+    const page = await browser.newPage();
 
-ws.on("message", (data) => {
-    const msg = JSON.parse(data.toString());
+    console.log("🌐 Abriendo Kick...");
+    await page.goto(URL, { waitUntil: "networkidle2" });
 
-    try {
-        if (msg.event === "App\\Events\\ChatMessageEvent") {
-            const parsed = JSON.parse(msg.data);
+    console.log("⌛ Esperando carga completa...");
+    await new Promise(r => setTimeout(r, 8000));
 
-            const username = parsed.sender.username.toLowerCase();
-            const message = parsed.content.toLowerCase();
+    console.log("🔌 Conectando WebSocket...");
+
+    const client = await page.target().createCDPSession();
+    await client.send("Network.enable");
+
+    client.on("Network.webSocketFrameReceived", async (event) => {
+        try {
+            const payload = event.response.payloadData;
+
+            if (!payload.includes("ChatMessageEvent")) return;
+
+            const data = JSON.parse(payload);
+            const chat = JSON.parse(data.data);
+
+            const username = chat.sender.username.toLowerCase();
+            const message = chat.content.trim().toLowerCase();
 
             console.log(`💬 ${username}: ${message}`);
 
-            const now = Date.now();
-
-            // cooldown simple
-            if (!cooldown[username] || now - cooldown[username] > 3000) {
-                addPoints(username, 1);
-                cooldown[username] = now;
-            }
-
-            // ⚔️ COMANDO DUELO
             if (message.startsWith("!duelo")) {
-                const target = message.split("@")[1];
-                if (target) {
-                    duel(username, target.toLowerCase());
-                }
+                const match = message.match(/@(\w+)/);
+                if (!match) return;
+
+                const target = match[1].toLowerCase();
+                if (target === username) return;
+
+                console.log("⚔️ Comando duelo detectado");
+
+                await duel(page, username, target, browser);
             }
 
-            // 🌐 COMANDO RANKING
-            if (message === "!ranking") {
-                console.log(`🌐 ${username} pidió ranking → ${RANK_URL}`);
-            }
+        } catch (err) {
+            console.log("❌ Error leyendo mensaje");
         }
-    } catch (e) {}
-});
+    });
 
-ws.on("error", (err) => {
-    console.log("❌ Error:", err.message);
-});
+    console.log("✅ Bot listo escuchando chat...");
+})();

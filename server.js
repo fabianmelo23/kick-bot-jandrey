@@ -1,66 +1,57 @@
 const express = require("express");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-const DATA_FILE = "./data/users.json";
+/* 🔥 SERVIR ARCHIVOS */
+app.use("/overlay", express.static(path.join(__dirname, "overlay")));
+app.use("/panel", express.static(path.join(__dirname, "panel")));
+app.use("/", express.static(path.join(__dirname, "ranking"))); // tu ranking
 
-let users = {};
+/* 🔥 RUTA USERS (LA QUE FALTABA) */
+app.get("/users", (req, res) => {
+    try {
+        const filePath = path.join(__dirname, "data", "users.json");
 
-// Cargar datos si existen
-if (fs.existsSync(DATA_FILE)) {
-    users = JSON.parse(fs.readFileSync(DATA_FILE));
-}
+        if (!fs.existsSync(filePath)) {
+            return res.json({});
+        }
 
-// 🔥 ENDPOINT PARA ACTUALIZAR DATOS DESDE EL BOT
-app.post("/update", (req, res) => {
-    users = req.body;
+        const users = JSON.parse(fs.readFileSync(filePath, "utf8"));
 
-    fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
+        res.json(users);
 
-    console.log("📡 Datos actualizados desde bot");
-
-    res.json({ status: "ok" });
-});
-
-// 📊 RANKING
-app.get("/ranking", (req, res) => {
-    const ranking = Object.entries(users)
-        .map(([name, data]) => ({
-            name,
-            puntos: data.puntos || 0
-        }))
-        .sort((a, b) => b.puntos - a.puntos)
-        .slice(0, 10);
-
-    res.json(ranking);
-});
-
-// 🌐 WEB
-app.get("/", (req, res) => {
-    res.send(`
-    <html>
-    <body style="background:#0f172a;color:white;text-align:center">
-    <h1>🏆 Ranking</h1>
-    <div id="data"></div>
-
-    <script>
-    async function load(){
-        const res = await fetch('/ranking');
-        const data = await res.json();
-        document.getElementById('data').innerHTML =
-            data.map((u,i)=>\`\${i+1}. \${u.name} - \${u.puntos} pts<br>\`).join('');
+    } catch (err) {
+        console.error("Error leyendo users:", err);
+        res.status(500).json({ error: "Error leyendo users" });
     }
-    load();
-    </script>
-    </body>
-    </html>
-    `);
 });
 
+/* 🔥 RUTA DUELO (ya la tienes pero la dejamos bien) */
+let duelo = {};
+
+app.get("/duelo", (req, res) => {
+    res.json(duelo);
+});
+
+app.post("/duelo", (req, res) => {
+    duelo = {
+        ...req.body,
+        activo: true
+    };
+
+    res.json({ ok: true });
+
+    setTimeout(() => {
+        duelo = {};
+    }, 10000);
+});
+
+/* 🔥 SERVER */
 app.listen(PORT, () => {
-    console.log("🌐 API corriendo en puerto " + PORT);
+    console.log("🔥 Server corriendo en puerto " + PORT);
 });
