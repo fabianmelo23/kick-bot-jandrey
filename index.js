@@ -1,199 +1,119 @@
-const puppeteer = require("puppeteer");
+const WebSocket = require("ws");
 const fs = require("fs");
-const express = require("express");
+const axios = require("axios");
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+// 🔗 TU API DE RENDER
+const API_URL = "https://kick-bot-jandrey-2.onrender.com/update";
+const RANK_URL = "https://kick-bot-jandrey-2.onrender.com";
+
+const CHANNEL_ID = "3086781";
 
 const DATA_FILE = "./data/users.json";
 
 let users = {};
+let cooldown = {};
 
+// Cargar datos
 if (fs.existsSync(DATA_FILE)) {
     users = JSON.parse(fs.readFileSync(DATA_FILE));
 }
 
-function guardarDatos() {
+// Guardar datos local
+function saveData() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
 }
 
-function initUser(username) {
+// 🔥 SINCRONIZAR CON RENDER
+async function syncData() {
+    try {
+        await axios.post(API_URL, users);
+        console.log("📡 Sync con Render OK");
+    } catch (err) {
+        console.log("❌ Error sync:", err.message);
+    }
+}
+
+// Sistema de puntos
+function addPoints(username, amount) {
     if (!users[username]) {
-        users[username] = {
-            puntos: 100,
-            xp: 0,
-            nivel: 1
-        };
+        users[username] = { puntos: 0, xp: 0, nivel: 1 };
     }
+
+    users[username].puntos += amount;
+    users[username].xp += amount;
+
+    // subir nivel cada 100 xp
+    if (users[username].xp >= 100) {
+        users[username].nivel++;
+        users[username].xp = 0;
+        console.log(`✨ ${username} subió a nivel ${users[username].nivel}`);
+    }
+
+    saveData();
+    syncData(); // 🔥 AQUÍ SE ACTUALIZA ONLINE
 }
 
-function checkLevelUp(username) {
-    let user = users[username];
-    let requiredXP = user.nivel * 50;
+// ⚔️ DUELO
+function duel(user1, user2) {
+    const winner = Math.random() < 0.5 ? user1 : user2;
+    const loser = winner === user1 ? user2 : user1;
 
-    if (user.xp >= requiredXP) {
-        user.xp -= requiredXP;
-        user.nivel += 1;
-        console.log(`✨ ${username} subió a nivel ${user.nivel}`);
-    }
+    addPoints(winner, 5);
+    addPoints(loser, 1);
+
+    console.log(`🏆 ${winner} ganó vs ${loser}`);
 }
 
-// 🌐 API ranking
-app.get("/ranking", (req, res) => {
-    const ranking = Object.entries(users)
-        .map(([name, data]) => ({
-            name,
-            puntos: data.puntos
-        }))
-        .sort((a, b) => b.puntos - a.puntos)
-        .slice(0, 10);
+// 🔌 WEBSOCKET
+const ws = new WebSocket("wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=7.0.6&flash=false");
 
-    res.json(ranking);
-});
+ws.on("open", () => {
+    console.log("🔥 Bot conectado a Kick");
 
-// 🌐 WEB
-app.get("/", (req, res) => {
-    res.send(`
-    <html>
-    <body style="background:#0f172a;color:white;text-align:center">
-    <h1>🏆 Ranking</h1>
-    <div id="data"></div>
-
-    <script>
-    async function load(){
-        const res = await fetch('/ranking');
-        const data = await res.json();
-        document.getElementById('data').innerHTML =
-            data.map((u,i)=>\`\${i+1}. \${u.name} - \${u.puntos} pts<br>\`).join('');
-    }
-    setInterval(load,2000);
-    load();
-    </script>
-    </body>
-    </html>
-    `);
-});
-
-app.listen(PORT, () => {
-    console.log("🌐 http://localhost:3000");
-});
-
-let cooldown = {};
-
-(async () => {
-    console.log("🔥 Bot ESTABLE DEFINITIVO");
-
-    const browser = await puppeteer.launch({
-        headless: false,
-        defaultViewport: null
-    });
-
-    const page = await browser.newPage();
-
-    await page.goto("https://kick.com/jandreytv", {
-        waitUntil: "networkidle2"
-    });
-
-    await page.waitForSelector('div[class*="chat"]');
-
-    await page.exposeFunction("onNewMessage", (username, message) => {
-
-        const usernameValido = /^[a-zA-Z0-9_]{3,20}$/.test(username);
-        if (!usernameValido || !message) return;
-
-        message = message.trim().toLowerCase();
-
-        console.log(`💬 ${username}: ${message}`);
-
-        initUser(username);
-
-        const now = Date.now();
-        if (cooldown[username] && now - cooldown[username] < 3000) return;
-
-        // 🌐 COMANDO RANKING
-        if (message === "!ranking") {
-            cooldown[username] = now;
-            console.log(`🌐 ${username} → http://localhost:3000`);
-            return;
+    ws.send(JSON.stringify({
+        event: "pusher:subscribe",
+        data: {
+            channel: `chatrooms.${CHANNEL_ID}.v2`
         }
+    }));
+});
 
-        // ⚔️ DUEL0
-        if (message.startsWith("!duelo")) {
-            const rival = message.split(" ")[1]?.replace("@", "");
+ws.on("message", (data) => {
+    const msg = JSON.parse(data.toString());
 
-            if (!rival || rival === username) return;
+    try {
+        if (msg.event === "App\\Events\\ChatMessageEvent") {
+            const parsed = JSON.parse(msg.data);
 
-            initUser(rival);
-            cooldown[username] = now;
+            const username = parsed.sender.username.toLowerCase();
+            const message = parsed.content.toLowerCase();
 
-            const atk1 = Math.floor(Math.random() * 100);
-            const atk2 = Math.floor(Math.random() * 100);
+            console.log(`💬 ${username}: ${message}`);
 
-            let ganador, perdedor;
+            const now = Date.now();
 
-            if (atk1 > atk2) {
-                ganador = username;
-                perdedor = rival;
-            } else if (atk2 > atk1) {
-                ganador = rival;
-                perdedor = username;
-            } else {
-                console.log("🤝 Empate");
-                return;
+            // cooldown simple
+            if (!cooldown[username] || now - cooldown[username] > 3000) {
+                addPoints(username, 1);
+                cooldown[username] = now;
             }
 
-            users[ganador].puntos += 5;
-            users[perdedor].puntos += 1;
+            // ⚔️ COMANDO DUELO
+            if (message.startsWith("!duelo")) {
+                const target = message.split("@")[1];
+                if (target) {
+                    duel(username, target.toLowerCase());
+                }
+            }
 
-            users[ganador].xp += 10;
-            users[perdedor].xp += 3;
-
-            checkLevelUp(ganador);
-            checkLevelUp(perdedor);
-
-            guardarDatos();
-
-            console.log(`🏆 ${ganador} ganó vs ${perdedor}`);
+            // 🌐 COMANDO RANKING
+            if (message === "!ranking") {
+                console.log(`🌐 ${username} pidió ranking → ${RANK_URL}`);
+            }
         }
-    });
+    } catch (e) {}
+});
 
-    await page.evaluate(() => {
-
-        let initialized = false;
-        let lastMessages = new Set();
-
-        const obs = new MutationObserver(() => {
-            const nodes = document.querySelectorAll("div");
-
-            nodes.forEach(msg => {
-                const t = msg.innerText?.trim();
-                if (!t || !t.includes(":")) return;
-
-                // 🔥 IGNORAR MENSAJES VIEJOS AL INICIAR
-                if (!initialized) {
-                    lastMessages.add(t);
-                    return;
-                }
-
-                // evitar repetidos
-                if (lastMessages.has(t)) return;
-
-                lastMessages.add(t);
-
-                const parts = t.split(":");
-                if (parts.length < 2) return;
-
-                const user = parts[0].trim();
-                const msgTxt = parts.slice(1).join(":").trim();
-
-                if (user && msgTxt) {
-                    window.onNewMessage(user, msgTxt);
-                }
-            });
-
-            initialized = true;
-        });
-
-        obs.observe(document.body, { childList: true, subtree: true });
-    });
-})();
+ws.on("error", (err) => {
+    console.log("❌ Error:", err.message);
+});

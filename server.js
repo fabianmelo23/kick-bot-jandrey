@@ -4,20 +4,34 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(express.json());
+
 const DATA_FILE = "./data/users.json";
 
 let users = {};
 
+// Cargar datos si existen
 if (fs.existsSync(DATA_FILE)) {
     users = JSON.parse(fs.readFileSync(DATA_FILE));
 }
 
-// API ranking
+// 🔥 ENDPOINT PARA ACTUALIZAR DATOS DESDE EL BOT
+app.post("/update", (req, res) => {
+    users = req.body;
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
+
+    console.log("📡 Datos actualizados desde bot");
+
+    res.json({ status: "ok" });
+});
+
+// 📊 RANKING
 app.get("/ranking", (req, res) => {
     const ranking = Object.entries(users)
         .map(([name, data]) => ({
             name,
-            puntos: data.puntos
+            puntos: data.puntos || 0
         }))
         .sort((a, b) => b.puntos - a.puntos)
         .slice(0, 10);
@@ -25,7 +39,7 @@ app.get("/ranking", (req, res) => {
     res.json(ranking);
 });
 
-// Página web
+// 🌐 WEB
 app.get("/", (req, res) => {
     res.send(`
     <html>
