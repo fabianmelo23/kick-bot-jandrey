@@ -323,19 +323,22 @@ async function duel(page, user1, user2) {
 
             if (message.startsWith("!verify")) {
                 const parts = message.split(/\s+/);
-                const code = parts[1];
-                if (!code) return;
+                // expected: !verify <username> <code>
+                const requestedUsername = parts[1];
+                const code = parts[2];
+                if (!requestedUsername || !code) return;
 
                 if (REMOTE_API_URL) {
                     axios.post(`${REMOTE_API_URL.replace(/\/+$/, "")}/api/auth/verify`, {
-                        username,
+                        sender: username,
+                        username: requestedUsername,
                         code
                     }, {
                         headers: REMOTE_API_TOKEN ? { "x-bot-token": REMOTE_API_TOKEN } : undefined,
                         timeout: 8000
                     }).then((r) => {
                         if (r?.data?.ok) {
-                            sendMessage(page, `✅ ${username} verificado. Ya puedes abrir tu perfil.`);
+                            sendMessage(page, `✅ ${requestedUsername} verificado. Ya puedes abrir tu perfil.`);
                         }
                     }).catch(() => {});
                 }

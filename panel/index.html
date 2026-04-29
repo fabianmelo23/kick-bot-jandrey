@@ -620,13 +620,14 @@
 
         const code = data.code;
         const id = data.id;
+        const cmd = data.command || `!verify ${USER} ${code}`;
         verifyOverlay.style.display = "flex";
         verifyCodeEl.textContent = code;
-        verifyCmdEl.textContent = `!verify ${code}`;
+        verifyCmdEl.textContent = cmd;
 
         btnCopyVerify.onclick = async () => {
           try {
-            await navigator.clipboard.writeText(`!verify ${code}`);
+            await navigator.clipboard.writeText(cmd);
             setStatus("Comando copiado.", "ok");
           } catch {
             setStatus("No se pudo copiar.", "error");
