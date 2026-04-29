@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -82,7 +84,10 @@ app.get("/user/:username", (req, res) => {
     const users = readUsers();
     const user = req.params.username.toLowerCase();
 
-    if (!users[user]) return res.json({ error: "Usuario no existe" });
+    if (!users[user]) {
+        ensureUser(users, user);
+        saveUsers(users);
+    }
 
     res.json(users[user]);
 });
