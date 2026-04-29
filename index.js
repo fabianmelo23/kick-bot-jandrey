@@ -14,10 +14,11 @@ const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 const REMOTE_API_URL = process.env.REMOTE_API_URL || "";
 const REMOTE_API_TOKEN = process.env.REMOTE_API_TOKEN || "";
 const RANKING_URL = process.env.RANKING_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
+const PROFILE_URL = process.env.PROFILE_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 
 const DEFAULT_AVATAR = REMOTE_API_URL
-    ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.png`
-    : "http://localhost:3000/overlay/avatar.png";
+    ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.svg`
+    : "http://localhost:3000/overlay/avatar.svg";
 
 const BROWSER_EXECUTABLE_PATH = process.env.BROWSER_EXECUTABLE_PATH || "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe";
 const BROWSER_USER_DATA_DIR = process.env.BROWSER_USER_DATA_DIR || path.join(__dirname, "perfil-bot");
@@ -279,6 +280,10 @@ async function duel(page, user1, user2) {
 
             if (message === "!jranking") {
                 await sendMessage(page, `🏆 Ranking: ${RANKING_URL}`);
+            }
+
+            if (message === "!jprofile") {
+                await sendMessage(page, `👤 Perfil: ${PROFILE_URL}/panel/?user=${encodeURIComponent(username)}`);
             }
 
         } catch {}

@@ -1,0 +1,10 @@
+{
+  "skins": [
+    {
+      "id": "default",
+      "name": "Default",
+      "imageUrl": "/overlay/avatar.svg"
+    }
+  ]
+}
+

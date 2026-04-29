@@ -1,36 +1,559 @@
-<script>
-const USER = new URLSearchParams(window.location.search).get("user");
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+  <title>Perfil</title>
+  <style>
+    :root{
+      --bg0:#05060a;
+      --bg1:#0a0f19;
+      --card:rgba(255,255,255,0.06);
+      --card2:rgba(255,255,255,0.08);
+      --border:rgba(255,255,255,0.10);
+      --text:#e8ecf5;
+      --muted:#aab3c5;
+      --green:#19c37d;
+      --green2:#0fa968;
+      --danger:#ff3b3b;
+      --shadow:0 18px 70px rgba(0,0,0,0.55);
+    }
 
-async function cargarUsuario() {
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color:var(--text);
+      background:
+        radial-gradient(800px 500px at 20% 20%, rgba(25,195,125,0.20), transparent 60%),
+        radial-gradient(900px 600px at 80% 20%, rgba(66,133,244,0.18), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      padding: 26px;
+    }
 
-    const res = await fetch(`/user/${USER}`);
-    const data = await res.json();
+    .wrap{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px;
+      border:1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(0,0,0,0.25);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
 
-    if (data.error) return;
+    .title{
+      font-weight:700;
+      letter-spacing:0.5px;
+      font-size: 22px;
+      text-align:center;
+      margin: 4px 0 18px;
+    }
+    .title .accent{ color: var(--green); }
 
-    document.getElementById("user").innerText = USER;
+    .grid{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap: 18px;
+    }
 
-    document.querySelector(".avatar img").src = data.avatar;
+    .card{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+    }
 
-    // 🔥 XP DINÁMICA
-    const maxXP = data.nivel * 100;
-    const porcentaje = (data.xp / maxXP) * 100;
+    .leftTop{
+      display:flex;
+      align-items:flex-start;
+      gap: 14px;
+    }
 
-    document.querySelector(".level").innerHTML = `
-        Nivel ${data.nivel}
-        <div class="bar">
-            <div class="bar-inner" style="width:${porcentaje}%"></div>
+    .avatarBox{
+      width: 132px;
+      height: 132px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+    }
+    .avatarBox img{
+      width: 110px;
+      height: 110px;
+      image-rendering: pixelated;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
+    }
+
+    .btn{
+      width:100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border:1px solid rgba(0,0,0,0.0);
+      cursor:pointer;
+      font-weight:700;
+      font-family:'Orbitron';
+      background: linear-gradient(180deg, var(--green), var(--green2));
+      color: #06110b;
+      transition: transform .08s ease, filter .15s ease;
+    }
+    .btn:active{ transform: scale(0.99); }
+    .btn.secondary{
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      border:1px solid var(--border);
+    }
+
+    .meta{
+      flex:1;
+      min-width:0;
+    }
+    .levelRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      gap: 10px;
+      margin-top: 2px;
+    }
+    .levelRow .lvl{
+      font-size: 18px;
+      font-weight:700;
+    }
+    .levelRow .xp{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .xpBar{
+      margin-top: 10px;
+      height: 10px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 999px;
+      overflow:hidden;
+    }
+    .xpBar > div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, #00c853, #6fffb1);
+      border-radius: 999px;
+      transition: width .25s ease;
+    }
+
+    .stats{
+      margin-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      padding-top: 12px;
+      display:grid;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .stat{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .stat .k{ color: var(--muted); }
+    .stat input{
+      width: 86px;
+      text-align:right;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.30);
+      color: var(--text);
+      font-family:'Orbitron';
+      outline:none;
+    }
+
+    .tabs{
+      display:flex;
+      gap: 12px;
+      justify-content:center;
+      margin-bottom: 14px;
+    }
+    .tab{
+      flex:1;
+      max-width: 240px;
+      text-align:center;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border:1px solid rgba(0,0,0,0.0);
+      cursor:pointer;
+      font-weight:700;
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+    }
+    .tab.active{
+      background: linear-gradient(180deg, var(--green), var(--green2));
+      color: #06110b;
+    }
+
+    .content{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 420px;
+      display:flex;
+      flex-direction:column;
+      gap: 14px;
+    }
+
+    .skinsGrid{
+      display:grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 6px;
+    }
+    .skin{
+      height: 88px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      position:relative;
+      transition: transform .08s ease, border-color .15s ease, background .15s ease;
+    }
+    .skin:hover{ transform: scale(1.02); }
+    .skin.selected{
+      border-color: rgba(25,195,125,0.9);
+      background: rgba(25,195,125,0.12);
+    }
+    .skin img{
+      width: 54px;
+      height: 54px;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+    .skin .label{
+      position:absolute;
+      bottom:6px;
+      left:8px;
+      right:8px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.75);
+      white-space: nowrap;
+      overflow:hidden;
+      text-overflow: ellipsis;
+      text-align:center;
+    }
+
+    .footerRow{
+      margin-top:auto;
+      display:flex;
+      gap: 12px;
+      align-items:center;
+    }
+    .status{
+      flex:1;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .status.error{ color: #ffb3b3; }
+    .status.ok{ color: #b7ffd8; }
+
+    .hint{
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      .skinsGrid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">Streamer: <span class="accent" id="user">...</span></div>
+    <div class="grid">
+      <div class="card">
+        <button class="btn secondary" id="btnChangeSkin">Cambiar skin</button>
+        <div style="height:12px"></div>
+        <div class="leftTop">
+          <div class="avatarBox"><img id="avatar" alt="avatar" /></div>
+          <div class="meta">
+            <div class="levelRow">
+              <div class="lvl" id="nivel">Nivel ...</div>
+              <div class="xp" id="xpText">0/0</div>
+            </div>
+            <div class="xpBar"><div id="xpBar"></div></div>
+            <div class="hint" id="pointsText">Puntos: 0</div>
+          </div>
         </div>
-    `;
 
-    document.querySelector(".stats").innerHTML = `
-        <div>❤️ Vida: ${data.vida || 100}</div>
-        <div>💪 Fuerza: ${data.fuerza || 5}</div>
-        <div>🛡 Defensa: ${data.defensa || 3}</div>
-        <div>⚡ Agilidad: ${data.agilidad || 4}</div>
-        <div>🏃 Velocidad: ${data.velocidad || 2}</div>
-    `;
-}
+        <div class="stats" id="stats">
+          <!-- stats inputs -->
+        </div>
+      </div>
 
-cargarUsuario();
-</script>
+      <div class="content">
+        <div class="tabs">
+          <div class="tab active" data-tab="skins">Armas</div>
+          <div class="tab" data-tab="weapons">Mascotas</div>
+          <div class="tab" data-tab="pets">Skins</div>
+        </div>
+
+        <div id="tab_skins" class="tabPane">
+          <div class="hint">Selecciona una skin disponible en tu inventario.</div>
+          <div class="skinsGrid" id="skinsGrid"></div>
+        </div>
+
+        <div id="tab_weapons" class="tabPane" style="display:none;">
+          <div class="hint">Armas (próximamente).</div>
+          <div class="skinsGrid" aria-hidden="true"></div>
+        </div>
+
+        <div id="tab_pets" class="tabPane" style="display:none;">
+          <div class="hint">Mascotas (próximamente).</div>
+          <div class="skinsGrid" aria-hidden="true"></div>
+        </div>
+
+        <div class="footerRow">
+          <div class="status" id="status">Listo.</div>
+          <button class="btn" id="btnSave">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const qs = new URLSearchParams(window.location.search);
+    const USER = (qs.get("user") || "").toLowerCase().trim();
+    const tokenFromQuery = (qs.get("token") || "").trim();
+    const storageKey = "kick_profile_panel_token";
+
+    function getToken() {
+      return tokenFromQuery || localStorage.getItem(storageKey) || "";
+    }
+
+    function setToken(token) {
+      if (!token) return;
+      localStorage.setItem(storageKey, token);
+    }
+
+    if (tokenFromQuery) setToken(tokenFromQuery);
+
+    const elUser = document.getElementById("user");
+    const elAvatar = document.getElementById("avatar");
+    const elNivel = document.getElementById("nivel");
+    const elXpText = document.getElementById("xpText");
+    const elXpBar = document.getElementById("xpBar");
+    const elPointsText = document.getElementById("pointsText");
+    const elStats = document.getElementById("stats");
+    const elSkinsGrid = document.getElementById("skinsGrid");
+    const elStatus = document.getElementById("status");
+
+    const btnSave = document.getElementById("btnSave");
+    const btnChangeSkin = document.getElementById("btnChangeSkin");
+
+    let profile = null;
+    let skinCatalog = null;
+    let selectedSkin = null;
+
+    function setStatus(msg, kind = "") {
+      elStatus.classList.remove("ok", "error");
+      if (kind) elStatus.classList.add(kind);
+      elStatus.textContent = msg;
+    }
+
+    function statRow(key, label, value) {
+      const div = document.createElement("div");
+      div.className = "stat";
+      div.innerHTML = `
+        <div class="k">${label}</div>
+        <input inputmode="numeric" id="stat_${key}" value="${Number(value) || 0}">
+      `;
+      return div;
+    }
+
+    function renderProfile() {
+      if (!profile) return;
+
+      elUser.textContent = profile.username;
+
+      elAvatar.src = profile.avatar || "/overlay/avatar.svg";
+
+      const maxXP = (Number(profile.nivel) || 1) * 100;
+      const xp = Number(profile.xp) || 0;
+      const pct = Math.max(0, Math.min(100, (xp / maxXP) * 100));
+      elNivel.textContent = `Nivel ${profile.nivel}`;
+      elXpText.textContent = `${xp}/${maxXP}`;
+      elXpBar.style.width = `${pct}%`;
+
+      elPointsText.textContent = `Puntos: ${Number(profile.puntos) || 0}`;
+
+      const s = profile.stats || {};
+      elStats.innerHTML = "";
+      elStats.appendChild(statRow("vida", "❤️ Vida", s.vida));
+      elStats.appendChild(statRow("fuerza", "💪 Fuerza", s.fuerza));
+      elStats.appendChild(statRow("defensa", "🛡 Defensa", s.defensa));
+      elStats.appendChild(statRow("agilidad", "⚡ Agilidad", s.agilidad));
+      elStats.appendChild(statRow("velocidad", "🏃 Velocidad", s.velocidad));
+    }
+
+    function ownedSkins() {
+      const owned = profile?.inventory?.skins || ["default"];
+      return owned;
+    }
+
+    function renderSkins() {
+      if (!profile || !skinCatalog) return;
+      elSkinsGrid.innerHTML = "";
+
+      const owned = new Set(ownedSkins());
+      const all = skinCatalog.skins || [];
+      const available = all.filter(s => owned.has(s.id));
+
+      if (!selectedSkin) selectedSkin = profile.selectedSkin || "default";
+
+      if (available.length === 0) {
+        const d = document.createElement("div");
+        d.className = "hint";
+        d.textContent = "No tienes skins todavía.";
+        elSkinsGrid.appendChild(d);
+        return;
+      }
+
+      for (const s of available) {
+        const div = document.createElement("div");
+        div.className = "skin" + (s.id === selectedSkin ? " selected" : "");
+        div.innerHTML = `
+          <img alt="${s.name}" src="${s.imageUrl}">
+          <div class="label">${s.name}</div>
+        `;
+        div.addEventListener("click", () => {
+          selectedSkin = s.id;
+          elAvatar.src = s.imageUrl || "/overlay/avatar.svg";
+          renderSkins();
+        });
+        elSkinsGrid.appendChild(div);
+      }
+    }
+
+    function readStatsFromInputs() {
+      function num(id) {
+        const v = Number(document.getElementById(id)?.value);
+        return Number.isFinite(v) ? v : 0;
+      }
+      return {
+        vida: num("stat_vida"),
+        fuerza: num("stat_fuerza"),
+        defensa: num("stat_defensa"),
+        agilidad: num("stat_agilidad"),
+        velocidad: num("stat_velocidad")
+      };
+    }
+
+    async function load() {
+      if (!USER) {
+        setStatus("Falta ?user= en la URL", "error");
+        return;
+      }
+
+      setStatus("Cargando...");
+      try {
+        const [pRes, sRes] = await Promise.all([
+          fetch(`/api/profile/${encodeURIComponent(USER)}`),
+          fetch(`/panel/skins.json`)
+        ]);
+
+        profile = await pRes.json();
+        skinCatalog = await sRes.json();
+
+        if (profile?.error) {
+          setStatus(profile.error, "error");
+          return;
+        }
+
+        selectedSkin = profile.selectedSkin || "default";
+        renderProfile();
+        renderSkins();
+
+        setStatus("Listo.", "ok");
+      } catch (e) {
+        setStatus("Error cargando perfil.", "error");
+      }
+    }
+
+    async function save() {
+      if (!profile) return;
+      const token = getToken();
+      if (!token) {
+        setStatus("Falta token. Abre el panel con ?token=TU_API_TOKEN", "error");
+        return;
+      }
+
+      setStatus("Guardando...");
+      try {
+        const res = await fetch(`/api/profile/${encodeURIComponent(profile.username)}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-token": token
+          },
+          body: JSON.stringify({
+            selectedSkin: selectedSkin || "default",
+            stats: readStatsFromInputs()
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || data?.error) {
+          setStatus(data?.error || "No se pudo guardar.", "error");
+          return;
+        }
+
+        profile = data.user;
+        renderProfile();
+        renderSkins();
+        setStatus("Guardado.", "ok");
+      } catch (e) {
+        setStatus("Error guardando.", "error");
+      }
+    }
+
+    // Tabs
+    document.querySelectorAll(".tab").forEach(t => {
+      t.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+        t.classList.add("active");
+        const id = t.dataset.tab;
+        document.getElementById("tab_skins").style.display = id === "skins" ? "" : "none";
+        document.getElementById("tab_weapons").style.display = id === "weapons" ? "" : "none";
+        document.getElementById("tab_pets").style.display = id === "pets" ? "" : "none";
+      });
+    });
+
+    btnSave.addEventListener("click", save);
+    btnChangeSkin.addEventListener("click", () => {
+      // Convenience: switch to skins tab.
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      const skinsTab = document.querySelector('.tab[data-tab="skins"]');
+      skinsTab.classList.add("active");
+      document.getElementById("tab_skins").style.display = "";
+      document.getElementById("tab_weapons").style.display = "none";
+      document.getElementById("tab_pets").style.display = "none";
+    });
+
+    load();
+  </script>
+</body>
+</html>

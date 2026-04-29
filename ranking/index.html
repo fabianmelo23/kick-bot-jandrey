@@ -124,8 +124,8 @@ async function loadRanking() {
             if (index === 2) div.classList.add("top3");
 
             const avatarUrl = (user.avatar && String(user.avatar).includes("localhost"))
-                ? "/overlay/avatar.png"
-                : (user.avatar || "/overlay/avatar.png");
+                ? "/overlay/avatar.svg"
+                : (user.avatar || "/overlay/avatar.svg");
 
             div.innerHTML = `
                 <div class="left">
