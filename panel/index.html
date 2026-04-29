@@ -470,9 +470,10 @@
 
       setStatus("Cargando...");
       try {
+        const bust = Date.now();
         const [pRes, sRes] = await Promise.all([
-          fetch(`/api/profile/${encodeURIComponent(USER)}`),
-          fetch(`/panel/skins.json`)
+          fetch(`/api/profile/${encodeURIComponent(USER)}?v=${bust}`),
+          fetch(`/panel/skins.json?v=${bust}`)
         ]);
 
         profile = await pRes.json();
