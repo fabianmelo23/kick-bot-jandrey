@@ -64,6 +64,10 @@ app.use("/panel", express.static(path.join(__dirname, "panel")));
 app.use("/ranking", express.static(path.join(__dirname, "ranking")));
 
 app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "ranking", "index.html"));
+});
+
+app.get("/health", (req, res) => {
     res.send("🔥 Server activo");
 });
 
