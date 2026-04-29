@@ -34,6 +34,23 @@ function defaultStats() {
     };
 }
 
+function defaultInventory() {
+    return {
+        skins: ["default"],
+        armas: [],
+        mascotas: []
+    };
+}
+
+function skinToAvatarUrl(skinId) {
+    // Minimal catalog mapping. Keep URLs relative so it works on Render and local.
+    switch (skinId) {
+        case "default":
+        default:
+            return "/overlay/avatar.svg";
+    }
+}
+
 function ensureStats(user) {
     if (!user.stats || typeof user.stats !== "object") {
         user.stats = defaultStats();
@@ -47,20 +64,54 @@ function ensureStats(user) {
     }
 }
 
+function ensureInventory(user) {
+    const defaults = defaultInventory();
+    if (!user.inventory || typeof user.inventory !== "object") {
+        user.inventory = defaults;
+    } else {
+        if (!Array.isArray(user.inventory.skins)) user.inventory.skins = defaults.skins;
+        if (!Array.isArray(user.inventory.armas)) user.inventory.armas = defaults.armas;
+        if (!Array.isArray(user.inventory.mascotas)) user.inventory.mascotas = defaults.mascotas;
+    }
+
+    if (!user.selectedSkin || typeof user.selectedSkin !== "string") {
+        user.selectedSkin = "default";
+    }
+
+    // Ensure selected skin is owned; fallback to default.
+    if (!user.inventory.skins.includes(user.selectedSkin)) {
+        user.selectedSkin = "default";
+    }
+
+    // Keep avatar aligned with selected skin unless a custom absolute URL is used later.
+    const mappedAvatar = skinToAvatarUrl(user.selectedSkin);
+    const currentAvatar = typeof user.avatar === "string" ? user.avatar.trim() : "";
+    if (
+        !currentAvatar ||
+        currentAvatar.includes("localhost:3000") ||
+        currentAvatar === "/overlay/avatar.png"
+    ) {
+        user.avatar = mappedAvatar;
+    }
+}
+
 function ensureUser(users, username) {
     if (!users[username]) {
         users[username] = {
             puntos: 0,
             xp: 0,
             nivel: 1,
-            avatar: "/overlay/avatar.png",
-            stats: defaultStats()
+            avatar: skinToAvatarUrl("default"),
+            stats: defaultStats(),
+            inventory: defaultInventory(),
+            selectedSkin: "default"
         };
         return;
     }
 
     // migrate old users
     ensureStats(users[username]);
+    ensureInventory(users[username]);
 }
 
 function addPointsToUser(users, username, amount) {
@@ -90,8 +141,33 @@ function sanitizeAvatar(avatar) {
     if (typeof avatar !== "string") return null;
     const v = avatar.trim();
     if (!v) return null;
-    if (v.includes("localhost:3000")) return "/overlay/avatar.png";
+    if (v.includes("localhost:3000")) return "/overlay/avatar.svg";
+    if (v === "/overlay/avatar.png") return "/overlay/avatar.svg";
     return v;
+}
+
+function clamp(min, value, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function sanitizeStats(stats, currentStats) {
+    const defaults = defaultStats();
+    const base = currentStats && typeof currentStats === "object" ? currentStats : defaults;
+    const s = (stats && typeof stats === "object") ? stats : {};
+
+    const vida = clamp(1, Number(s.vida ?? base.vida ?? defaults.vida), 999);
+    const fuerza = clamp(0, Number(s.fuerza ?? base.fuerza ?? defaults.fuerza), 99);
+    const defensa = clamp(0, Number(s.defensa ?? base.defensa ?? defaults.defensa), 99);
+    const agilidad = clamp(0, Number(s.agilidad ?? base.agilidad ?? defaults.agilidad), 99);
+    const velocidad = clamp(0, Number(s.velocidad ?? base.velocidad ?? defaults.velocidad), 99);
+
+    return {
+        vida: Number.isFinite(vida) ? vida : defaults.vida,
+        fuerza: Number.isFinite(fuerza) ? fuerza : defaults.fuerza,
+        defensa: Number.isFinite(defensa) ? defensa : defaults.defensa,
+        agilidad: Number.isFinite(agilidad) ? agilidad : defaults.agilidad,
+        velocidad: Number.isFinite(velocidad) ? velocidad : defaults.velocidad
+    };
 }
 
 /* =========================
@@ -124,6 +200,71 @@ app.get("/user/:username", (req, res) => {
     saveUsers(users);
 
     res.json(users[user]);
+});
+
+/* =========================
+   PROFILE API
+========================= */
+app.get("/api/profile/:username", (req, res) => {
+    const users = readUsers();
+    const username = req.params.username.toLowerCase();
+
+    ensureUser(users, username);
+    saveUsers(users);
+
+    const u = users[username];
+    return res.json({
+        username,
+        puntos: u.puntos,
+        xp: u.xp,
+        nivel: u.nivel,
+        avatar: u.avatar,
+        stats: u.stats,
+        selectedSkin: u.selectedSkin,
+        inventory: u.inventory
+    });
+});
+
+app.post("/api/profile/:username", requireToken, (req, res) => {
+    const users = readUsers();
+    const username = req.params.username.toLowerCase();
+
+    ensureUser(users, username);
+
+    const u = users[username];
+
+    // selected skin
+    let selectedSkin = u.selectedSkin;
+    if (typeof req.body?.selectedSkin === "string") {
+        selectedSkin = req.body.selectedSkin.trim();
+    }
+
+    if (!u.inventory?.skins?.includes(selectedSkin)) {
+        return res.status(400).json({ error: "selectedSkin no está en el inventario" });
+    }
+
+    // stats
+    const nextStats = sanitizeStats(req.body?.stats, u.stats);
+
+    u.selectedSkin = selectedSkin;
+    u.stats = nextStats;
+    u.avatar = skinToAvatarUrl(selectedSkin);
+
+    saveUsers(users);
+
+    return res.json({
+        ok: true,
+        user: {
+            username,
+            puntos: u.puntos,
+            xp: u.xp,
+            nivel: u.nivel,
+            avatar: u.avatar,
+            stats: u.stats,
+            selectedSkin: u.selectedSkin,
+            inventory: u.inventory
+        }
+    });
 });
 
 /* =========================
@@ -160,20 +301,24 @@ let dueloActual = {
     jugador2: null,
     avatar1: null,
     avatar2: null,
+    seed: null,
     ganador: null
 };
 
 app.post("/duelo", (req, res) => {
 
-    const { jugador1, jugador2, avatar1, avatar2 } = req.body;
+    const { jugador1, jugador2, avatar1, avatar2, seed } = req.body;
+    const id = Date.now();
+    const duelSeed = Number.isFinite(Number(seed)) ? Number(seed) : id;
 
     dueloActual = {
-        id: Date.now(),
+        id,
         activo: true,
         jugador1,
         jugador2,
         avatar1,
         avatar2,
+        seed: duelSeed,
         ganador: null
     };
 

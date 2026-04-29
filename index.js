@@ -3,6 +3,7 @@ require("dotenv").config();
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
+const path = require("path");
 const axios = require("axios");
 
 puppeteer.use(StealthPlugin());
@@ -13,10 +14,16 @@ const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 const REMOTE_API_URL = process.env.REMOTE_API_URL || "";
 const REMOTE_API_TOKEN = process.env.REMOTE_API_TOKEN || "";
 const RANKING_URL = process.env.RANKING_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
+const PROFILE_URL = process.env.PROFILE_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 
 const DEFAULT_AVATAR = REMOTE_API_URL
-    ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.png`
-    : "http://localhost:3000/overlay/avatar.png";
+    ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.svg`
+    : "http://localhost:3000/overlay/avatar.svg";
+
+const BROWSER_EXECUTABLE_PATH = process.env.BROWSER_EXECUTABLE_PATH || "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe";
+const BROWSER_USER_DATA_DIR = process.env.BROWSER_USER_DATA_DIR || path.join(__dirname, "perfil-bot");
+const BROWSER_PROFILE_DIR = process.env.BROWSER_PROFILE_DIR || "Default";
+const BROWSER_CONNECT_URL = process.env.BROWSER_CONNECT_URL || "";
 
 function defaultStats() {
     return {
@@ -162,6 +169,7 @@ async function duel(page, user1, user2) {
 
     const remote1 = await getRemoteUser(user1);
     const remote2 = await getRemoteUser(user2);
+    const seed = Date.now();
 
     await axios.post("http://localhost:3000/duelo", {
         jugador1: user1,
@@ -171,7 +179,8 @@ async function duel(page, user1, user2) {
         nivel1: Number(remote1?.nivel ?? users[user1].nivel ?? 1) || 1,
         nivel2: Number(remote2?.nivel ?? users[user2].nivel ?? 1) || 1,
         stats1: remote1?.stats || defaultStats(),
-        stats2: remote2?.stats || defaultStats()
+        stats2: remote2?.stats || defaultStats(),
+        seed
     });
 
     const ganador = await (async function waitForWinner() {
@@ -211,14 +220,26 @@ async function duel(page, user1, user2) {
     console.log("🔥 Iniciando bot...");
     loadData();
 
-    const browser = await puppeteer.launch({
-        headless: false,
-        executablePath: "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
-        userDataDir: "C:\\Users\\SantiMichell\\AppData\\Local\\BraveSoftware\\Brave-Browser\\User Data",
-        args: ["--profile-directory=Default"]
-    });
+    const browser = BROWSER_CONNECT_URL
+        ? await puppeteer.connect({ browserURL: BROWSER_CONNECT_URL })
+        : await puppeteer.launch({
+            headless: false,
+            executablePath: BROWSER_EXECUTABLE_PATH,
+            userDataDir: BROWSER_USER_DATA_DIR,
+            ignoreDefaultArgs: ["--enable-automation"],
+            args: [
+                `--profile-directory=${BROWSER_PROFILE_DIR}`,
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-blink-features=AutomationControlled"
+            ]
+        });
 
     const page = await browser.newPage();
+    try {
+        const ua = await browser.userAgent();
+        await page.setUserAgent(ua.replace("HeadlessChrome", "Chrome"));
+    } catch {}
 
     await page.goto(URL, { waitUntil: "networkidle2" });
 
@@ -259,6 +280,10 @@ async function duel(page, user1, user2) {
 
             if (message === "!jranking") {
                 await sendMessage(page, `🏆 Ranking: ${RANKING_URL}`);
+            }
+
+            if (message === "!jprofile") {
+                await sendMessage(page, `👤 Perfil: ${PROFILE_URL}/panel/?user=${encodeURIComponent(username)}`);
             }
 
         } catch {}

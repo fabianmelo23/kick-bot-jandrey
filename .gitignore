@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+node_modules/
+
+# Local browser profiles (do not commit)
+perfil/
+perfil-bot/
+
