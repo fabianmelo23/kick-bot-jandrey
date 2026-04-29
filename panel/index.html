@@ -288,7 +288,7 @@
         <button class="btn secondary" id="btnChangeSkin">Cambiar skin</button>
         <div style="height:12px"></div>
         <div class="leftTop">
-          <div class="avatarBox"><img id="avatar" alt="avatar" /></div>
+          <div class="avatarBox"><img id="avatar" alt="avatar" onerror="this.onerror=null;this.src='/overlay/avatar.svg';" /></div>
           <div class="meta">
             <div class="levelRow">
               <div class="lvl" id="nivel">Nivel ...</div>
@@ -389,7 +389,7 @@
 
       elUser.textContent = profile.username;
 
-      elAvatar.src = profile.avatar || "/overlay/avatar.svg";
+      elAvatar.src = profile.avatar || "/overlay/avatar.png";
 
       const maxXP = (Number(profile.nivel) || 1) * 100;
       const xp = Number(profile.xp) || 0;
@@ -436,12 +436,12 @@
         const div = document.createElement("div");
         div.className = "skin" + (s.id === selectedSkin ? " selected" : "");
         div.innerHTML = `
-          <img alt="${s.name}" src="${s.imageUrl}">
+          <img alt="${s.name}" src="${s.imageUrl}" onerror="this.onerror=null;this.src='/overlay/avatar.svg';">
           <div class="label">${s.name}</div>
         `;
         div.addEventListener("click", () => {
           selectedSkin = s.id;
-          elAvatar.src = s.imageUrl || "/overlay/avatar.svg";
+          elAvatar.src = s.imageUrl || "/overlay/avatar.png";
           renderSkins();
         });
         elSkinsGrid.appendChild(div);
