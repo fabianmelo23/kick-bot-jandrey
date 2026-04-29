@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
   <title>Perfil</title>
   <style>
@@ -145,6 +147,52 @@
       border-radius: 999px;
       transition: width .25s ease;
     }
+
+    .skillSectionTitle{
+      margin-top: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      color: #c4a7ff;
+      text-transform: uppercase;
+    }
+
+    .skillBar{
+      margin-top: 8px;
+      height: 10px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(196,167,255,0.35);
+      border-radius: 999px;
+      overflow:hidden;
+    }
+    .skillBar > div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, #7c4dff, #c4a7ff);
+      border-radius: 999px;
+      transition: width .25s ease;
+    }
+
+    .statPlus{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width: 26px;
+      height: 26px;
+      margin-right: 6px;
+      padding: 0 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(124,77,255,0.55);
+      background: rgba(124,77,255,0.22);
+      color: #e8deff;
+      font-weight:800;
+      font-size: 16px;
+      font-family:'Orbitron', system-ui;
+      cursor:pointer;
+      vertical-align: middle;
+    }
+    .statPlus:hover{ filter: brightness(1.08); }
+    .statPlus:active{ transform: scale(0.98); }
 
     .stats{
       margin-top: 14px;
@@ -381,6 +429,12 @@
               <div class="xp" id="xpText">0/0</div>
             </div>
             <div class="xpBar"><div id="xpBar"></div></div>
+            <div class="skillSectionTitle">Progreso de habilidad (duelos)</div>
+            <div class="levelRow" style="margin-top:6px;">
+              <div class="xp" id="skillText" style="color:#dcd2f0;">Habilidad 0/50</div>
+            </div>
+            <div class="skillBar"><div id="skillBarFill"></div></div>
+            <div class="hint" id="skillBankHint" style="margin-top:6px;font-size:11px;line-height:1.35;"></div>
             <div class="hint" id="pointsText">Puntos: 0</div>
           </div>
         </div>
@@ -442,6 +496,9 @@
     const elNivel = document.getElementById("nivel");
     const elXpText = document.getElementById("xpText");
     const elXpBar = document.getElementById("xpBar");
+    const elSkillText = document.getElementById("skillText");
+    const elSkillBarFill = document.getElementById("skillBarFill");
+    const elSkillBankHint = document.getElementById("skillBankHint");
     const elPointsText = document.getElementById("pointsText");
     const elStats = document.getElementById("stats");
     const elSkinsGrid = document.getElementById("skinsGrid");
@@ -466,14 +523,44 @@
       elStatus.textContent = msg;
     }
 
-    function statRow(key, label, value) {
+    function statRow(key, label, value, canSpend) {
       const div = document.createElement("div");
       div.className = "stat";
+      const plusBtn = canSpend
+        ? `<button type="button" class="statPlus" data-stat="${key}" title="Gastar 1 punto aquí">+</button>`
+        : "";
       div.innerHTML = `
-        <div class="k">${label}</div>
+        <div class="k">${plusBtn}<span>${label}</span></div>
         <input inputmode="numeric" id="stat_${key}" value="${Number(value) || 0}">
       `;
+      if (canSpend) {
+        const b = div.querySelector(".statPlus");
+        if (b) b.addEventListener("click", (e) => { e.preventDefault(); spendStat(key); });
+      }
       return div;
+    }
+
+    async function spendStat(stat) {
+      if (!USER) return;
+      setStatus("Aplicando stat...");
+      try {
+        const res = await fetch(`/api/profile/${encodeURIComponent(USER)}/spend-stat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stat })
+        });
+        const data = await res.json();
+        if (!res.ok || data?.error) {
+          setStatus(data?.error || "No se pudo aplicar.", "error");
+          return;
+        }
+        profile = data.user;
+        renderProfile();
+        renderSkins();
+        setStatus("Estadística aumentada.", "ok");
+      } catch {
+        setStatus("Error de red.", "error");
+      }
     }
 
     function renderProfile() {
@@ -490,16 +577,28 @@
       elXpText.textContent = `${xp}/${maxXP}`;
       elXpBar.style.width = `${pct}%`;
 
+      const hProg = Math.max(0, Math.min(49, Number(profile.habilidadProgreso) || 0));
+      const bank = Math.max(0, Number(profile.puntosEstadistica) || 0);
+      const skillPct = Math.max(0, Math.min(100, (hProg / 50) * 100));
+      if (elSkillText) elSkillText.textContent = `Habilidad ${hProg}/50`;
+      if (elSkillBarFill) elSkillBarFill.style.width = `${skillPct}%`;
+      if (elSkillBankHint) {
+        elSkillBankHint.textContent = bank > 0
+          ? `Tienes ${bank} punto(s) para gastar. Pulsa + delante de la stat que quieras subir.`
+          : "Cada victoria en duelo suma 1 a esta barra. Al llegar a 50 obtienes 1 punto para subir una estadística.";
+      }
+
       elPointsText.textContent = `Puntos: ${Number(profile.puntos) || 0}`;
 
       const s = profile.stats || {};
+      const canSpend = bank > 0;
       elStats.innerHTML = "";
       const rows = [
-        statRow("vida", "❤️ Vida", s.vida),
-        statRow("fuerza", "💪 Fuerza", s.fuerza),
-        statRow("defensa", "🛡 Defensa", s.defensa),
-        statRow("agilidad", "⚡ Agilidad", s.agilidad),
-        statRow("velocidad", "🏃 Velocidad", s.velocidad)
+        statRow("vida", "❤️ Vida", s.vida, canSpend),
+        statRow("fuerza", "💪 Fuerza", s.fuerza, canSpend),
+        statRow("defensa", "🛡 Defensa", s.defensa, canSpend),
+        statRow("agilidad", "⚡ Agilidad", s.agilidad, canSpend),
+        statRow("velocidad", "🏃 Velocidad", s.velocidad, canSpend)
       ];
 
       const isAdmin = Boolean(getToken());
