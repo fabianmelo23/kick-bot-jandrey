@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
@@ -10,8 +12,11 @@ const DATA_FILE = "./data/users.json";
 const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 const REMOTE_API_URL = process.env.REMOTE_API_URL || "";
 const REMOTE_API_TOKEN = process.env.REMOTE_API_TOKEN || "";
+const RANKING_URL = process.env.RANKING_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 
-const DEFAULT_AVATAR = "http://localhost:3000/overlay/avatar.png";
+const DEFAULT_AVATAR = REMOTE_API_URL
+    ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.png`
+    : "http://localhost:3000/overlay/avatar.png";
 
 let users = {};
 let duelCooldown = {};
@@ -99,6 +104,16 @@ function getRankingTop(limit = 5) {
     return `🏅 Top ${entries.length}: ${top}`;
 }
 
+async function getRemoteUser(username) {
+    if (!REMOTE_API_URL) return null;
+    try {
+        const res = await axios.get(`${REMOTE_API_URL.replace(/\/+$/, "")}/user/${encodeURIComponent(username)}`, { timeout: 8000 });
+        return res?.data || null;
+    } catch {
+        return null;
+    }
+}
+
 /* =========================
    UTIL
 ========================= */
@@ -135,11 +150,14 @@ async function duel(page, user1, user2) {
     ensureUser(user1);
     ensureUser(user2);
 
+    const remote1 = await getRemoteUser(user1);
+    const remote2 = await getRemoteUser(user2);
+
     await axios.post("http://localhost:3000/duelo", {
         jugador1: user1,
         jugador2: user2,
-        avatar1: users[user1].avatar,
-        avatar2: users[user2].avatar
+        avatar1: remote1?.avatar || users[user1].avatar || DEFAULT_AVATAR,
+        avatar2: remote2?.avatar || users[user2].avatar || DEFAULT_AVATAR
     });
 
     const ganador = await (async function waitForWinner() {
@@ -223,6 +241,10 @@ async function duel(page, user1, user2) {
 
             if (message === "!ranking") {
                 await sendMessage(page, getRankingTop(5));
+            }
+
+            if (message === "!jranking") {
+                await sendMessage(page, `🏆 Ranking: ${RANKING_URL}`);
             }
 
         } catch {}
