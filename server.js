@@ -7,8 +7,79 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_TOKEN = process.env.API_TOKEN || null;
+const AUTH_BOT_TOKEN = process.env.AUTH_BOT_TOKEN || API_TOKEN || null;
 
 app.use(express.json());
+
+/* =========================
+   AUTH (chat verify)
+========================= */
+const SESSION_COOKIE = "kick_profile_session";
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const VERIFY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// In-memory stores (Render instances may restart; user can re-verify)
+const pendingById = new Map(); // id -> { username, code, expiresAt, verified }
+const pendingByCode = new Map(); // code -> id
+const sessions = new Map(); // token -> { username, expiresAt }
+
+function nowMs() { return Date.now(); }
+
+function randomCode() {
+    // 6 digits
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function randomToken() {
+    // short safe token
+    return `${nowMs().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function parseCookies(req) {
+    const header = req.headers.cookie;
+    if (!header) return {};
+    const out = {};
+    for (const part of header.split(";")) {
+        const [k, ...rest] = part.trim().split("=");
+        if (!k) continue;
+        out[k] = decodeURIComponent(rest.join("=") || "");
+    }
+    return out;
+}
+
+function setSessionCookie(res, token) {
+    const maxAge = Math.floor(SESSION_TTL_MS / 1000);
+    // HttpOnly cookie; SameSite Lax so normal navigation works
+    res.setHeader("Set-Cookie", `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax`);
+}
+
+function getSession(req) {
+    const cookies = parseCookies(req);
+    const token = cookies[SESSION_COOKIE];
+    if (!token) return null;
+    const s = sessions.get(token);
+    if (!s) return null;
+    if (nowMs() > s.expiresAt) {
+        sessions.delete(token);
+        return null;
+    }
+    return { token, ...s };
+}
+
+function requireUserSession(req, res, next) {
+    const username = String(req.params.username || "").toLowerCase();
+    const s = getSession(req);
+    if (!s) return res.status(401).json({ error: "No autenticado" });
+    if (s.username !== username) return res.status(403).json({ error: "No autorizado" });
+    next();
+}
+
+function requireBotToken(req, res, next) {
+    if (!AUTH_BOT_TOKEN) return res.status(500).json({ error: "AUTH_BOT_TOKEN no configurado" });
+    const token = req.header("x-bot-token");
+    if (!token || token !== AUTH_BOT_TOKEN) return res.status(401).json({ error: "Unauthorized" });
+    next();
+}
 
 /* =========================
    USERS
@@ -222,6 +293,74 @@ app.get("/health", (req, res) => {
 });
 
 /* =========================
+   AUTH API
+========================= */
+app.get("/api/me", (req, res) => {
+    const s = getSession(req);
+    if (!s) return res.json({ loggedIn: false });
+    return res.json({ loggedIn: true, username: s.username });
+});
+
+app.post("/api/auth/start", (req, res) => {
+    const username = String(req.body?.username || "").toLowerCase().trim();
+    if (!username) return res.status(400).json({ error: "username requerido" });
+
+    const id = randomToken();
+    const code = randomCode();
+    const expiresAt = nowMs() + VERIFY_TTL_MS;
+
+    pendingById.set(id, { username, code, expiresAt, verified: false });
+    pendingByCode.set(code, id);
+
+    return res.json({ id, code, expiresAt });
+});
+
+app.get("/api/auth/status/:id", (req, res) => {
+    const id = String(req.params.id || "");
+    const p = pendingById.get(id);
+    if (!p) return res.status(404).json({ error: "No existe" });
+    if (nowMs() > p.expiresAt) return res.status(410).json({ error: "Expirado" });
+    return res.json({ verified: Boolean(p.verified), username: p.username });
+});
+
+app.post("/api/auth/complete/:id", (req, res) => {
+    const id = String(req.params.id || "");
+    const p = pendingById.get(id);
+    if (!p) return res.status(404).json({ error: "No existe" });
+    if (nowMs() > p.expiresAt) return res.status(410).json({ error: "Expirado" });
+    if (!p.verified) return res.status(400).json({ error: "Aún no verificado" });
+
+    const token = randomToken();
+    sessions.set(token, { username: p.username, expiresAt: nowMs() + SESSION_TTL_MS });
+    setSessionCookie(res, token);
+
+    // cleanup
+    pendingById.delete(id);
+    pendingByCode.delete(p.code);
+
+    return res.json({ ok: true, username: p.username });
+});
+
+// Called by the bot after seeing `!verify <code>` from Kick chat.
+app.post("/api/auth/verify", requireBotToken, (req, res) => {
+    const username = String(req.body?.username || "").toLowerCase().trim();
+    const code = String(req.body?.code || "").trim();
+    if (!username || !code) return res.status(400).json({ error: "username y code requeridos" });
+
+    const id = pendingByCode.get(code);
+    if (!id) return res.status(404).json({ error: "Código inválido" });
+    const p = pendingById.get(id);
+    if (!p) return res.status(404).json({ error: "Código inválido" });
+    if (nowMs() > p.expiresAt) return res.status(410).json({ error: "Código expirado" });
+    if (p.username !== username) return res.status(403).json({ error: "Código no corresponde a este usuario" });
+
+    p.verified = true;
+    pendingById.set(id, p);
+
+    return res.json({ ok: true });
+});
+
+/* =========================
    USERS API
 ========================= */
 app.get("/users", (req, res) => {
@@ -241,7 +380,7 @@ app.get("/user/:username", (req, res) => {
 /* =========================
    PROFILE API
 ========================= */
-app.get("/api/profile/:username", (req, res) => {
+app.get("/api/profile/:username", requireUserSession, (req, res) => {
     const users = readUsers();
     const username = req.params.username.toLowerCase();
 
@@ -261,7 +400,7 @@ app.get("/api/profile/:username", (req, res) => {
     });
 });
 
-app.post("/api/profile/:username", requireToken, (req, res) => {
+app.post("/api/profile/:username", requireToken, requireUserSession, (req, res) => {
     const users = readUsers();
     const username = req.params.username.toLowerCase();
 
@@ -305,7 +444,7 @@ app.post("/api/profile/:username", requireToken, (req, res) => {
 });
 
 // Public: allow selecting a skin without token (stats remain protected)
-app.post("/api/profile/:username/skin", (req, res) => {
+app.post("/api/profile/:username/skin", requireUserSession, (req, res) => {
     const users = readUsers();
     const username = req.params.username.toLowerCase();
 
