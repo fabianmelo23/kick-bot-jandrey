@@ -58,6 +58,14 @@ function requireToken(req, res, next) {
     next();
 }
 
+function sanitizeAvatar(avatar) {
+    if (typeof avatar !== "string") return null;
+    const v = avatar.trim();
+    if (!v) return null;
+    if (v.includes("localhost:3000")) return "/overlay/avatar.png";
+    return v;
+}
+
 /* =========================
    STATIC
 ========================= */
@@ -98,7 +106,7 @@ app.get("/user/:username", (req, res) => {
 app.post("/api/points", requireToken, (req, res) => {
     const username = String(req.body?.username || "").toLowerCase().trim();
     const amount = Number(req.body?.amount || 0);
-    const avatar = req.body?.avatar;
+    const avatar = sanitizeAvatar(req.body?.avatar);
 
     if (!username) return res.status(400).json({ error: "username requerido" });
     if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: "amount inválido" });
@@ -106,8 +114,8 @@ app.post("/api/points", requireToken, (req, res) => {
     const users = readUsers();
     ensureUser(users, username);
 
-    if (typeof avatar === "string" && avatar.trim()) {
-        users[username].avatar = avatar.trim();
+    if (avatar) {
+        users[username].avatar = avatar;
     }
 
     addPointsToUser(users, username, amount);
