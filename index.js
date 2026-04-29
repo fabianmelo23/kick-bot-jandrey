@@ -133,21 +133,37 @@ async function duel(page, user1, user2, browser) {
     console.log("⚔️ Duelo ejecutado:", user1, "vs", user2);
 }
 
-// ✅ CORREGIDO: Rutas de navegador sin hardcodear
-// Ahora soporta múltiples navegadores: Chrome, Brave, Firefox, etc.
-// Para especificar una ruta personalizada, usa la variable de entorno BROWSER_PATH
+// ✅ CONFIGURADO: Brave Browser como navegador por defecto
+// Rutas de Brave según sistema operativo
+const BRAVE_PATHS = {
+    win32: "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+    darwin: "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    linux: "/usr/bin/brave-browser"
+};
+
 (async () => {
-    console.log("🔥 Iniciando bot...");
+    console.log("🔥 Iniciando bot con Brave Browser...");
 
     try {
+        const platform = process.platform;
+        const bravePath = BRAVE_PATHS[platform];
+
+        if (!bravePath) {
+            throw new Error(`Sistema operativo no soportado: ${platform}`);
+        }
+
         const launchOptions = {
             headless: false,
+            executablePath: bravePath,
             args: ["--profile-directory=Default"]
         };
 
-        // Opcional: usar ruta personalizada si se proporciona
+        // Permitir override con variable de entorno si es necesario
         if (process.env.BROWSER_PATH) {
             launchOptions.executablePath = process.env.BROWSER_PATH;
+            console.log("⚙️ Usando navegador personalizado:", process.env.BROWSER_PATH);
+        } else {
+            console.log("🌐 Usando Brave Browser en:", bravePath);
         }
 
         const browser = await puppeteer.launch(launchOptions);
