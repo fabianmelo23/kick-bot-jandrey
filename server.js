@@ -312,7 +312,7 @@ app.post("/api/auth/start", (req, res) => {
     pendingById.set(id, { username, code, expiresAt, verified: false });
     pendingByCode.set(code, id);
 
-    return res.json({ id, code, expiresAt });
+    return res.json({ id, code, expiresAt, command: `!verify ${username} ${code}` });
 });
 
 app.get("/api/auth/status/:id", (req, res) => {
@@ -343,16 +343,18 @@ app.post("/api/auth/complete/:id", (req, res) => {
 
 // Called by the bot after seeing `!verify <code>` from Kick chat.
 app.post("/api/auth/verify", requireBotToken, (req, res) => {
-    const username = String(req.body?.username || "").toLowerCase().trim();
+    const sender = String(req.body?.sender || "").toLowerCase().trim();
+    const requestedUsername = String(req.body?.username || "").toLowerCase().trim();
     const code = String(req.body?.code || "").trim();
-    if (!username || !code) return res.status(400).json({ error: "username y code requeridos" });
+    if (!sender || !requestedUsername || !code) return res.status(400).json({ error: "sender, username y code requeridos" });
 
     const id = pendingByCode.get(code);
     if (!id) return res.status(404).json({ error: "Código inválido" });
     const p = pendingById.get(id);
     if (!p) return res.status(404).json({ error: "Código inválido" });
     if (nowMs() > p.expiresAt) return res.status(410).json({ error: "Código expirado" });
-    if (p.username !== username) return res.status(403).json({ error: "Código no corresponde a este usuario" });
+    if (p.username !== requestedUsername) return res.status(403).json({ error: "Código no corresponde a este usuario" });
+    if (sender !== requestedUsername) return res.status(403).json({ error: "El sender no coincide con el usuario" });
 
     p.verified = true;
     pendingById.set(id, p);
