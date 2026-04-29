@@ -1,194 +1,36 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-
-<style>
-body {
-    margin: 0;
-    overflow: hidden;
-    background: transparent;
-}
-
-/* CONTENEDOR */
-.container {
-    width: 1920px;
-    height: 1080px;
-    position: relative;
-}
-
-/* VIDA */
-.hp {
-    position: absolute;
-    top: 80px;
-    width: 300px;
-    height: 20px;
-    background: #222;
-    border-radius: 10px;
-}
-
-.hp.left { left: 200px; }
-.hp.right { right: 200px; }
-
-.hp-inner {
-    height: 100%;
-    background: lime;
-    border-radius: 10px;
-    transition: width 0.3s;
-}
-
-/* AVATAR */
-.player {
-    position: absolute;
-    top: 250px;
-    width: 200px;
-    transition: transform 0.3s;
-}
-
-.player.left { left: 400px; }
-.player.right { right: 400px; transform: scaleX(-1); }
-
-/* ATAQUE */
-.attack-left {
-    transform: translateX(150px);
-}
-
-.attack-right {
-    transform: translateX(-150px) scaleX(-1);
-}
-
-/* DAÑO */
-.damage {
-    position: absolute;
-    color: red;
-    font-size: 40px;
-    animation: float 1s forwards;
-}
-
-@keyframes float {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-80px); }
-}
-
-/* GANADOR */
-.winner {
-    position: absolute;
-    top: 150px;
-    width: 100%;
-    text-align: center;
-    font-size: 80px;
-    color: gold;
-    display: none;
-}
-</style>
-</head>
-
-<body>
-
-<div class="container">
-
-<div class="hp left"><div id="hp1" class="hp-inner"></div></div>
-<div class="hp right"><div id="hp2" class="hp-inner"></div></div>
-
-<img id="p1" class="player left">
-<img id="p2" class="player right">
-
-<div id="winner" class="winner"></div>
-
-</div>
-
 <script>
-let lastState = null;
+const USER = new URLSearchParams(window.location.search).get("user");
 
-async function checkDuelo() {
-    try {
-        const res = await fetch("http://localhost:3000/duelo");
-        const data = await res.json();
+async function cargarUsuario() {
 
-        if (!data.activo) return;
+    const res = await fetch(`/user/${USER}`);
+    const data = await res.json();
 
-        // SOLO si cambió el duelo
-        if (JSON.stringify(data) === JSON.stringify(lastState)) return;
+    if (data.error) return;
 
-        lastState = data;
+    document.getElementById("user").innerText = USER;
 
-        iniciarDuelo(data);
+    document.querySelector(".avatar img").src = data.avatar;
 
-    } catch (err) {
-        console.log("error overlay");
-    }
+    // 🔥 XP DINÁMICA
+    const maxXP = data.nivel * 100;
+    const porcentaje = (data.xp / maxXP) * 100;
+
+    document.querySelector(".level").innerHTML = `
+        Nivel ${data.nivel}
+        <div class="bar">
+            <div class="bar-inner" style="width:${porcentaje}%"></div>
+        </div>
+    `;
+
+    document.querySelector(".stats").innerHTML = `
+        <div>❤️ Vida: ${data.vida || 100}</div>
+        <div>💪 Fuerza: ${data.fuerza || 5}</div>
+        <div>🛡 Defensa: ${data.defensa || 3}</div>
+        <div>⚡ Agilidad: ${data.agilidad || 4}</div>
+        <div>🏃 Velocidad: ${data.velocidad || 2}</div>
+    `;
 }
 
-async function iniciarDuelo(data) {
-
-    const p1 = document.getElementById("p1");
-    const p2 = document.getElementById("p2");
-
-    p1.src = data.avatar1;
-    p2.src = data.avatar2;
-
-    let hp1 = 100;
-    let hp2 = 100;
-
-    document.getElementById("hp1").style.width = "100%";
-    document.getElementById("hp2").style.width = "100%";
-
-    for (let i = 0; i < 10; i++) {
-
-        await new Promise(r => setTimeout(r, 600));
-
-        const attacker = Math.random() < 0.5 ? 1 : 2;
-        const dmg = Math.floor(Math.random() * 15) + 5;
-
-        if (attacker === 1) {
-            p1.classList.add("attack-left");
-
-            hp2 -= dmg;
-            document.getElementById("hp2").style.width = hp2 + "%";
-
-            showDamage(p2, dmg);
-
-            setTimeout(() => p1.classList.remove("attack-left"), 300);
-
-        } else {
-            p2.classList.add("attack-right");
-
-            hp1 -= dmg;
-            document.getElementById("hp1").style.width = hp1 + "%";
-
-            showDamage(p1, dmg);
-
-            setTimeout(() => p2.classList.remove("attack-right"), 300);
-        }
-    }
-
-    mostrarGanador(data.ganador);
-}
-
-function showDamage(player, dmg) {
-    const rect = player.getBoundingClientRect();
-
-    const dmgEl = document.createElement("div");
-    dmgEl.className = "damage";
-    dmgEl.innerText = "-" + dmg;
-
-    dmgEl.style.left = rect.left + "px";
-    dmgEl.style.top = rect.top + "px";
-
-    document.body.appendChild(dmgEl);
-
-    setTimeout(() => dmgEl.remove(), 1000);
-}
-
-function mostrarGanador(nombre) {
-    const el = document.getElementById("winner");
-    el.innerText = "🏆 " + nombre + " ganó";
-    el.style.display = "block";
-}
-
-// 🔥 LOOP CADA 1 SEGUNDO
-setInterval(checkDuelo, 1000);
+cargarUsuario();
 </script>
-
-</body>
-</html>

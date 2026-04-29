@@ -1,63 +1,217 @@
+require("dotenv").config();
+
 const express = require("express");
-const cors = require("cors"); // ✅ CORREGIDO: Agregar CORS
 const fs = require("fs");
 const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const API_TOKEN = process.env.API_TOKEN || null;
 
 app.use(express.json());
-app.use(cors()); // ✅ CORREGIDO: Habilitar CORS
 
-/* 🔥 ESTÁTICOS */
+/* =========================
+   USERS
+========================= */
+const filePath = path.join(__dirname, "data", "users.json");
+
+function readUsers() {
+    if (!fs.existsSync(filePath)) return {};
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function saveUsers(users) {
+    fs.writeFileSync(filePath, JSON.stringify(users, null, 2));
+}
+
+function defaultStats() {
+    return {
+        vida: 30,
+        fuerza: 2,
+        defensa: 2,
+        agilidad: 2,
+        velocidad: 2
+    };
+}
+
+function ensureStats(user) {
+    if (!user.stats || typeof user.stats !== "object") {
+        user.stats = defaultStats();
+        return;
+    }
+
+    const defaults = defaultStats();
+    for (const k of Object.keys(defaults)) {
+        const v = Number(user.stats[k]);
+        user.stats[k] = Number.isFinite(v) ? v : defaults[k];
+    }
+}
+
+function ensureUser(users, username) {
+    if (!users[username]) {
+        users[username] = {
+            puntos: 0,
+            xp: 0,
+            nivel: 1,
+            avatar: "/overlay/avatar.png",
+            stats: defaultStats()
+        };
+        return;
+    }
+
+    // migrate old users
+    ensureStats(users[username]);
+}
+
+function addPointsToUser(users, username, amount) {
+    ensureUser(users, username);
+    const user = users[username];
+
+    const delta = Number(amount) || 0;
+    user.puntos = Number(user.puntos || 0) + delta;
+    user.xp = Number(user.xp || 0) + delta;
+
+    let xpNecesaria = Number(user.nivel || 1) * 100;
+    while (user.xp >= xpNecesaria) {
+        user.xp -= xpNecesaria;
+        user.nivel = Number(user.nivel || 1) + 1;
+        xpNecesaria = Number(user.nivel || 1) * 100;
+    }
+}
+
+function requireToken(req, res, next) {
+    if (!API_TOKEN) return next(); // allow if not configured
+    const token = req.header("x-api-token");
+    if (!token || token !== API_TOKEN) return res.status(401).json({ error: "Unauthorized" });
+    next();
+}
+
+function sanitizeAvatar(avatar) {
+    if (typeof avatar !== "string") return null;
+    const v = avatar.trim();
+    if (!v) return null;
+    if (v.includes("localhost:3000")) return "/overlay/avatar.png";
+    return v;
+}
+
+/* =========================
+   STATIC
+========================= */
 app.use("/overlay", express.static(path.join(__dirname, "overlay")));
 app.use("/panel", express.static(path.join(__dirname, "panel")));
-app.use("/ranking", express.static(path.join(__dirname, "ranking"))); // 👈 importante
+app.use("/ranking", express.static(path.join(__dirname, "ranking")));
 
-/* 🔥 RAÍZ (LO QUE FALTABA) */
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "ranking", "index.html"));
 });
 
-/* 🔥 USERS */
+app.get("/health", (req, res) => {
+    res.send("🔥 Server activo");
+});
+
+/* =========================
+   USERS API
+========================= */
 app.get("/users", (req, res) => {
-    try {
-        const filePath = path.join(__dirname, "data", "users.json");
+    res.json(readUsers());
+});
 
-        if (!fs.existsSync(filePath)) {
-            return res.json({});
-        }
+app.get("/user/:username", (req, res) => {
+    const users = readUsers();
+    const user = req.params.username.toLowerCase();
 
-        const users = JSON.parse(fs.readFileSync(filePath, "utf8"));
-        res.json(users);
+    ensureUser(users, user);
+    saveUsers(users);
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Error leyendo users" });
+    res.json(users[user]);
+});
+
+/* =========================
+   POINTS SYNC API (for Render)
+========================= */
+app.post("/api/points", requireToken, (req, res) => {
+    const username = String(req.body?.username || "").toLowerCase().trim();
+    const amount = Number(req.body?.amount || 0);
+    const avatar = sanitizeAvatar(req.body?.avatar);
+
+    if (!username) return res.status(400).json({ error: "username requerido" });
+    if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: "amount inválido" });
+
+    const users = readUsers();
+    ensureUser(users, username);
+
+    if (avatar) {
+        users[username].avatar = avatar;
     }
+
+    addPointsToUser(users, username, amount);
+    saveUsers(users);
+
+    return res.json({ ok: true, user: users[username] });
 });
 
-/* 🔥 DUELO */
-let duelo = {};
-
-app.get("/duelo", (req, res) => {
-    res.json(duelo);
-});
+/* =========================
+   DUELO (CON ID ÚNICO)
+========================= */
+let dueloActual = {
+    id: null,
+    activo: false,
+    jugador1: null,
+    jugador2: null,
+    avatar1: null,
+    avatar2: null,
+    seed: null,
+    ganador: null
+};
 
 app.post("/duelo", (req, res) => {
-    duelo = {
-        ...req.body,
-        activo: true
+
+    const { jugador1, jugador2, avatar1, avatar2, seed } = req.body;
+    const id = Date.now();
+    const duelSeed = Number.isFinite(Number(seed)) ? Number(seed) : id;
+
+    dueloActual = {
+        id,
+        activo: true,
+        jugador1,
+        jugador2,
+        avatar1,
+        avatar2,
+        seed: duelSeed,
+        ganador: null
     };
 
-    res.json({ ok: true });
+    console.log("⚔️ Duelo iniciado:", jugador1, "vs", jugador2);
 
-    setTimeout(() => {
-        duelo = {};
-    }, 10000);
+    res.json({ ok: true });
 });
 
-/* 🔥 SERVER */
+app.get("/duelo", (req, res) => {
+    res.json(dueloActual);
+});
+
+/* =========================
+   RESULTADO (ANTI DUPLICADO)
+========================= */
+app.post("/duelo/resultado", (req, res) => {
+
+    const { ganador } = req.body;
+
+    if (dueloActual.ganador) {
+        return res.json({ ok: false });
+    }
+
+    dueloActual.ganador = ganador;
+    dueloActual.activo = false;
+
+    console.log("🏆 Ganador registrado:", ganador);
+
+    res.json({ ok: true });
+});
+
+/* =========================
+   START
+========================= */
 app.listen(PORT, () => {
-    console.log("🔥 Server corriendo en puerto " + PORT);
+    console.log(`🔥 Server corriendo en http://localhost:${PORT}`);
 });

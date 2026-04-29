@@ -123,9 +123,13 @@ async function loadRanking() {
             if (index === 1) div.classList.add("top2");
             if (index === 2) div.classList.add("top3");
 
+            const avatarUrl = (user.avatar && String(user.avatar).includes("localhost"))
+                ? "/overlay/avatar.png"
+                : (user.avatar || "/overlay/avatar.png");
+
             div.innerHTML = `
                 <div class="left">
-                    <img class="avatar" src="${user.avatar || '/overlay/avatar.png'}">
+                    <img class="avatar" src="${avatarUrl}">
                     <div class="name">#${index + 1} ${user.name}</div>
                 </div>
                 <div class="points">${user.puntos || 0} pts</div>
