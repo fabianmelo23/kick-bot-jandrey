@@ -477,6 +477,15 @@
         return;
       }
 
+      // Require login: must verify ownership via chat
+      try {
+        const me = await (await fetch("/api/me")).json();
+        if (!me?.loggedIn || String(me.username) !== USER) {
+          await startVerifyFlow();
+          return;
+        }
+      } catch {}
+
       setStatus("Cargando...");
       try {
         const bust = Date.now();
@@ -500,6 +509,48 @@
         setStatus("Listo.", "ok");
       } catch (e) {
         setStatus("Error cargando perfil.", "error");
+      }
+    }
+
+    async function startVerifyFlow() {
+      setStatus("Inicia verificación...");
+      try {
+        const start = await fetch("/api/auth/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: USER })
+        });
+        const data = await start.json();
+        if (!start.ok || data?.error) {
+          setStatus(data?.error || "No se pudo iniciar verificación.", "error");
+          return;
+        }
+
+        const code = data.code;
+        const id = data.id;
+        setStatus(`Escribe en el chat: !verify ${code}`, "error");
+
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < 5 * 60 * 1000) {
+          await new Promise(r => setTimeout(r, 1200));
+          const st = await fetch(`/api/auth/status/${encodeURIComponent(id)}`);
+          const s = await st.json();
+          if (s?.verified) {
+            // complete: sets cookie
+            const c = await fetch(`/api/auth/complete/${encodeURIComponent(id)}`, { method: "POST" });
+            const done = await c.json();
+            if (c.ok && done?.ok) {
+              setStatus("Verificado. Cargando...", "ok");
+              // reload to use cookie
+              location.reload();
+              return;
+            }
+          }
+        }
+
+        setStatus("Código expirado. Recarga para generar uno nuevo.", "error");
+      } catch {
+        setStatus("Error en verificación. Intenta recargar.", "error");
       }
     }
 

@@ -135,7 +135,9 @@ async function getRemoteUser(username) {
    UTIL
 ========================= */
 function getKey(user1, user2) {
-    return [user1, user2].sort().join("_");
+    // Cooldown should be directional: challenger -> target
+    // This allows the target to immediately challenge back.
+    return `${user1}__${user2}`;
 }
 
 async function sendMessage(page, text) {
@@ -317,6 +319,26 @@ async function duel(page, user1, user2) {
 
             if (message === "!jprofile") {
                 await sendMessage(page, `👤 Perfil: ${PROFILE_URL}/panel/?user=${encodeURIComponent(username)}`);
+            }
+
+            if (message.startsWith("!verify")) {
+                const parts = message.split(/\s+/);
+                const code = parts[1];
+                if (!code) return;
+
+                if (REMOTE_API_URL) {
+                    axios.post(`${REMOTE_API_URL.replace(/\/+$/, "")}/api/auth/verify`, {
+                        username,
+                        code
+                    }, {
+                        headers: REMOTE_API_TOKEN ? { "x-bot-token": REMOTE_API_TOKEN } : undefined,
+                        timeout: 8000
+                    }).then((r) => {
+                        if (r?.data?.ok) {
+                            sendMessage(page, `✅ ${username} verificado. Ya puedes abrir tu perfil.`);
+                        }
+                    }).catch(() => {});
+                }
             }
 
         } catch {}
