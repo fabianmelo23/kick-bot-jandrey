@@ -328,9 +328,21 @@ function sanitizeStats(stats, currentStats) {
 /* =========================
    STATIC
 ========================= */
-app.use("/overlay", express.static(path.join(__dirname, "overlay")));
-app.use("/panel", express.static(path.join(__dirname, "panel")));
-app.use("/ranking", express.static(path.join(__dirname, "ranking")));
+function staticDir(root) {
+    return express.static(root, {
+        setHeaders(res, filePath) {
+            if (String(filePath).toLowerCase().endsWith(".html")) {
+                res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+                res.setHeader("Pragma", "no-cache");
+                res.setHeader("Expires", "0");
+            }
+        }
+    });
+}
+
+app.use("/overlay", staticDir(path.join(__dirname, "overlay")));
+app.use("/panel", staticDir(path.join(__dirname, "panel")));
+app.use("/ranking", staticDir(path.join(__dirname, "ranking")));
 
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "ranking", "index.html"));

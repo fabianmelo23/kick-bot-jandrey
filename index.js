@@ -10,6 +10,15 @@ puppeteer.use(StealthPlugin());
 
 const URL = "https://kick.com/jandreytv";
 const DATA_FILE = "./data/users.json";
+
+function panelCacheQuery() {
+    try {
+        const st = fs.statSync(path.join(__dirname, "panel", "index.html"));
+        return `p=${st.mtimeMs}`;
+    } catch {
+        return `p=${Date.now()}`;
+    }
+}
 const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 const REMOTE_API_URL = process.env.REMOTE_API_URL || "";
 const REMOTE_API_TOKEN = process.env.REMOTE_API_TOKEN || "";
@@ -379,7 +388,8 @@ async function duel(page, user1, user2) {
             }
 
             if (message === "!jprofile") {
-                await sendMessage(page, `👤 Perfil: ${PROFILE_URL}/panel/?user=${encodeURIComponent(username)}`);
+                const pq = panelCacheQuery();
+                await sendMessage(page, `👤 Perfil: ${PROFILE_URL}/panel/?user=${encodeURIComponent(username)}&${pq}`);
             }
 
             if (message.startsWith("!verify")) {

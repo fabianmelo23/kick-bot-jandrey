@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
   <title>Perfil</title>
   <style>
@@ -146,11 +148,20 @@
       transition: width .25s ease;
     }
 
+    .skillSectionTitle{
+      margin-top: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      color: #c4a7ff;
+      text-transform: uppercase;
+    }
+
     .skillBar{
-      margin-top: 6px;
+      margin-top: 8px;
       height: 10px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(196,167,255,0.35);
       border-radius: 999px;
       overflow:hidden;
     }
@@ -418,8 +429,9 @@
               <div class="xp" id="xpText">0/0</div>
             </div>
             <div class="xpBar"><div id="xpBar"></div></div>
-            <div class="levelRow" style="margin-top:10px;">
-              <div class="xp" id="skillText">Habilidad 0/50</div>
+            <div class="skillSectionTitle">Progreso de habilidad (duelos)</div>
+            <div class="levelRow" style="margin-top:6px;">
+              <div class="xp" id="skillText" style="color:#dcd2f0;">Habilidad 0/50</div>
             </div>
             <div class="skillBar"><div id="skillBarFill"></div></div>
             <div class="hint" id="skillBankHint" style="margin-top:6px;font-size:11px;line-height:1.35;"></div>
@@ -567,12 +579,14 @@
 
       const hProg = Math.max(0, Math.min(49, Number(profile.habilidadProgreso) || 0));
       const bank = Math.max(0, Number(profile.puntosEstadistica) || 0);
-      elSkillText.textContent = `Habilidad ${hProg}/50`;
       const skillPct = Math.max(0, Math.min(100, (hProg / 50) * 100));
-      elSkillBarFill.style.width = `${skillPct}%`;
-      elSkillBankHint.textContent = bank > 0
-        ? `Tienes ${bank} punto(s) para gastar. Pulsa + delante de la stat que quieras subir.`
-        : "Cada victoria en duelo suma 1 a esta barra. Al llegar a 50 obtienes 1 punto para subir una estadística.";
+      if (elSkillText) elSkillText.textContent = `Habilidad ${hProg}/50`;
+      if (elSkillBarFill) elSkillBarFill.style.width = `${skillPct}%`;
+      if (elSkillBankHint) {
+        elSkillBankHint.textContent = bank > 0
+          ? `Tienes ${bank} punto(s) para gastar. Pulsa + delante de la stat que quieras subir.`
+          : "Cada victoria en duelo suma 1 a esta barra. Al llegar a 50 obtienes 1 punto para subir una estadística.";
+      }
 
       elPointsText.textContent = `Puntos: ${Number(profile.puntos) || 0}`;
 
