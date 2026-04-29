@@ -402,11 +402,20 @@
 
       const s = profile.stats || {};
       elStats.innerHTML = "";
-      elStats.appendChild(statRow("vida", "❤️ Vida", s.vida));
-      elStats.appendChild(statRow("fuerza", "💪 Fuerza", s.fuerza));
-      elStats.appendChild(statRow("defensa", "🛡 Defensa", s.defensa));
-      elStats.appendChild(statRow("agilidad", "⚡ Agilidad", s.agilidad));
-      elStats.appendChild(statRow("velocidad", "🏃 Velocidad", s.velocidad));
+      const rows = [
+        statRow("vida", "❤️ Vida", s.vida),
+        statRow("fuerza", "💪 Fuerza", s.fuerza),
+        statRow("defensa", "🛡 Defensa", s.defensa),
+        statRow("agilidad", "⚡ Agilidad", s.agilidad),
+        statRow("velocidad", "🏃 Velocidad", s.velocidad)
+      ];
+
+      const isAdmin = Boolean(getToken());
+      for (const r of rows) {
+        const input = r.querySelector("input");
+        if (input) input.disabled = !isAdmin;
+        elStats.appendChild(r);
+      }
     }
 
     function ownedSkins() {
@@ -498,7 +507,28 @@
       if (!profile) return;
       const token = getToken();
       if (!token) {
-        setStatus("Falta token. Abre el panel con ?token=TU_API_TOKEN", "error");
+        // Public save: skin only
+        setStatus("Guardando skin...");
+        try {
+          const res = await fetch(`/api/profile/${encodeURIComponent(profile.username)}/skin`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ selectedSkin: selectedSkin || "default" })
+          });
+
+          const data = await res.json();
+          if (!res.ok || data?.error) {
+            setStatus(data?.error || "No se pudo guardar skin.", "error");
+            return;
+          }
+
+          profile = data.user;
+          renderProfile();
+          renderSkins();
+          setStatus("Skin guardada.", "ok");
+        } catch {
+          setStatus("Error guardando skin.", "error");
+        }
         return;
       }
 

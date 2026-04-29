@@ -304,6 +304,47 @@ app.post("/api/profile/:username", requireToken, (req, res) => {
     });
 });
 
+// Public: allow selecting a skin without token (stats remain protected)
+app.post("/api/profile/:username/skin", (req, res) => {
+    const users = readUsers();
+    const username = req.params.username.toLowerCase();
+
+    ensureUser(users, username);
+    const u = users[username];
+
+    const selectedSkin = typeof req.body?.selectedSkin === "string"
+        ? req.body.selectedSkin.trim()
+        : "";
+
+    if (!selectedSkin) return res.status(400).json({ error: "selectedSkin requerido" });
+
+    const catalogIds = getCatalogSkinIds();
+    if (!catalogIds.includes(selectedSkin)) {
+        return res.status(400).json({ error: "selectedSkin no existe en el catálogo" });
+    }
+
+    // Ensure user owns catalog skins (free skins) and then allow selection.
+    ensureInventory(u);
+    u.selectedSkin = selectedSkin;
+    u.avatar = skinToAvatarUrl(selectedSkin);
+
+    saveUsers(users);
+
+    return res.json({
+        ok: true,
+        user: {
+            username,
+            puntos: u.puntos,
+            xp: u.xp,
+            nivel: u.nivel,
+            avatar: u.avatar,
+            stats: u.stats,
+            selectedSkin: u.selectedSkin,
+            inventory: u.inventory
+        }
+    });
+});
+
 /* =========================
    POINTS SYNC API (for Render)
 ========================= */
