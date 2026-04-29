@@ -6,111 +6,83 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
 
 <style>
-body {
-    margin: 0;
-    background: transparent;
-    overflow: hidden;
-    font-family: 'Orbitron', sans-serif;
-}
+body { margin:0; background:transparent; overflow:hidden; font-family:'Orbitron'; }
 
-.container {
-    width: 1920px;
-    height: 1080px;
-    position: relative;
-}
+.container { width:1920px; height:1080px; position:relative; }
 
-/* BARRAS */
 .bar-container {
-    position: absolute;
-    top: 130px;
-    width: 260px;
+    position:absolute;
+    top:120px;
+    width:260px;
 }
 
-.left-bar { left: 650px; }
-.right-bar { right: 650px; }
+.left-bar { left:650px; }
+.right-bar { right:650px; }
 
-.name {
-    margin-bottom: 6px;
-    font-size: 26px;
+.name { color:white; font-size:26px; }
+
+.hp-text {
+    margin-top: 6px;
     color: white;
-    font-weight: bold;
+    font-size: 18px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
 }
-
-.left-bar .name { text-align: left; }
-.right-bar .name { text-align: right; }
 
 .bar {
-    width: 100%;
-    height: 26px;
-    background: #111;
-    border-radius: 12px;
+    height:24px;
+    background:#111;
+    border-radius:12px;
 }
 
 .hp {
-    height: 100%;
-    width: 100%;
-    border-radius: 12px;
-    transition: width 0.3s, background 0.3s;
+    height:100%;
+    width:100%;
+    border-radius:12px;
+    transition:0.3s;
 }
 
-/* 🔥 AVATARES MÁS GRANDES */
 .player {
-    position: absolute;
-    top: 230px;
-    width: 260px; /* 🔥 MÁS GRANDE */
-    transition: all 0.5s ease;
+    position:absolute;
+    top:230px;
+    width:260px;
+    transition:0.4s;
 }
 
-.left { left: 650px; }
-.right { right: 650px; transform: scaleX(-1); }
+.left { left:650px; }
+.right { right:650px; transform:scaleX(-1); }
 
-/* ATAQUE */
-.attack-left {
-    transform: translateX(110px);
-}
+.attack-left { transform:translateX(120px); }
+.attack-right { transform:translateX(-120px) scaleX(-1); }
 
-.attack-right {
-    transform: translateX(-110px) scaleX(-1);
-}
+.fade-out { opacity:0; }
 
-/* 🔥 MUERTE */
-.fade-out {
-    opacity: 0;
-}
-
-/* 🔥 GANADOR CENTRO */
 .winner-center {
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%) scale(1.4) !important;
-    top: 300px !important;
+    left:50%!important;
+    transform:translateX(-50%) scale(1.4)!important;
 }
 
-/* DAÑO */
+#winner {
+    position:absolute;
+    top:200px;
+    width:100%;
+    text-align:center;
+    font-size:26px;
+    color:gold;
+    display:none;
+}
+
 .damage {
-    position: absolute;
-    color: red;
-    font-size: 28px;
-    animation: float 1s forwards;
+    position:absolute;
+    color:red;
+    font-size:22px;
+    animation:float 0.6s ease-out;
 }
 
 @keyframes float {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-60px); }
-}
-
-/* TEXTO GANADOR */
-#winner {
-    position: absolute;
-    top: 210px;
-    width: 100%;
-    text-align: center;
-    font-size: 28px;
-    color: gold;
-    display: none;
+    0% { opacity:1; transform:translateY(0); }
+    100% { opacity:0; transform:translateY(-40px); }
 }
 </style>
-
 </head>
 
 <body>
@@ -120,11 +92,13 @@ body {
 <div class="bar-container left-bar">
     <div id="name1" class="name"></div>
     <div class="bar"><div id="hp1" class="hp"></div></div>
+    <div id="hpText1" class="hp-text"></div>
 </div>
 
 <div class="bar-container right-bar">
     <div id="name2" class="name"></div>
     <div class="bar"><div id="hp2" class="hp"></div></div>
+    <div id="hpText2" class="hp-text"></div>
 </div>
 
 <img id="p1" class="player left">
@@ -135,25 +109,37 @@ body {
 </div>
 
 <script>
-let lastId = null;
+let enDuelo = false;
+let ultimoId = null;
 
 setInterval(async () => {
+
+    if (enDuelo) return;
+
     const res = await fetch("/duelo");
     const data = await res.json();
 
     if (!data.activo) return;
+    if (data.id === ultimoId) return;
 
-    const id = JSON.stringify(data);
-    if (id === lastId) return;
+    ultimoId = data.id;
+    enDuelo = true;
 
-    lastId = id;
-    startFight(data);
+    iniciarDuelo(data);
+
 }, 500);
 
-async function startFight(d) {
+async function iniciarDuelo(d) {
+
+    const winnerText = document.getElementById("winner");
+    winnerText.style.display = "none";
+    winnerText.innerText = "";
 
     const p1 = document.getElementById("p1");
     const p2 = document.getElementById("p2");
+
+    p1.className = "player left";
+    p2.className = "player right";
 
     document.getElementById("name1").innerText = d.jugador1;
     document.getElementById("name2").innerText = d.jugador2;
@@ -161,96 +147,149 @@ async function startFight(d) {
     p1.src = d.avatar1;
     p2.src = d.avatar2;
 
-    /* RESET */
-    p1.className = "player left";
-    p2.className = "player right";
+    const s1 = d.stats1 || { vida: 30, fuerza: 2, defensa: 2, agilidad: 2, velocidad: 2 };
+    const s2 = d.stats2 || { vida: 30, fuerza: 2, defensa: 2, agilidad: 2, velocidad: 2 };
+    const nivel1 = Number(d.nivel1 || 1);
+    const nivel2 = Number(d.nivel2 || 1);
 
-    let hp1 = 100;
-    let hp2 = 100;
+    function vidaMax(stats, nivel) {
+        const base = Number(stats?.vida || 30);
+        return Math.max(1, base + Math.max(0, (nivel - 1)) * 5);
+    }
+
+    let hp1 = vidaMax(s1, nivel1);
+    let hp2 = vidaMax(s2, nivel2);
+    const max1 = hp1;
+    const max2 = hp2;
 
     const hpBar1 = document.getElementById("hp1");
     const hpBar2 = document.getElementById("hp2");
+    const hpText1 = document.getElementById("hpText1");
+    const hpText2 = document.getElementById("hpText2");
 
-    function getColor(hp) {
-        if (hp > 60) return "lime";
-        if (hp > 30) return "yellow";
+    function color(pct){
+        if(pct>60) return "lime";
+        if(pct>30) return "yellow";
         return "red";
     }
 
-    function updateHP() {
-        hpBar1.style.width = hp1 + "%";
-        hpBar2.style.width = hp2 + "%";
+    function update(){
+        const pct1 = Math.round((hp1 / max1) * 100);
+        const pct2 = Math.round((hp2 / max2) * 100);
+        hpBar1.style.width = pct1 + "%";
+        hpBar2.style.width = pct2 + "%";
+        hpBar1.style.background = color(pct1);
+        hpBar2.style.background = color(pct2);
 
-        hpBar1.style.background = getColor(hp1);
-        hpBar2.style.background = getColor(hp2);
+        hpText1.innerText = `${hp1}/${max1}`;
+        hpText2.innerText = `${hp2}/${max2}`;
     }
 
-    updateHP();
-    document.getElementById("winner").style.display = "none";
+    function dmg(x,y,val){
+        const d=document.createElement("div");
+        d.className="damage";
+        d.style.left=x+"px";
+        d.style.top=y+"px";
+        d.innerText="-"+val;
+        document.body.appendChild(d);
+        setTimeout(()=>d.remove(),600);
+    }
 
-    while (hp1 > 0 && hp2 > 0) {
+    update();
+
+    function clamp(min, x, max) { return Math.max(min, Math.min(max, x)); }
+
+    function computeDamage(att, def) {
+        const base = Math.floor(Math.random() * 5) + 4; // 4..8
+        const fuerza = Number(att?.fuerza || 2);
+        const defensa = Number(def?.defensa || 2);
+        let damage = base + fuerza - Math.floor(defensa / 2);
+
+        const agi = Number(att?.agilidad || 2);
+        const critChance = Math.min(0.30, agi * 0.01);
+        if (Math.random() < critChance) damage = Math.round(damage * 1.5);
+
+        return clamp(5, damage, 25);
+    }
+
+    function attackerIsP1() {
+        const v1 = Number(s1?.velocidad || 2);
+        const v2 = Number(s2?.velocidad || 2);
+        const p = clamp(0.2, 0.5 + (v1 - v2) * 0.02, 0.8);
+        return Math.random() < p;
+    }
+
+    while(hp1>0 && hp2>0){
 
         await sleep(350);
 
-        const dmg = Math.floor(Math.random() * 12) + 6;
-
-        if (Math.random() < 0.5) {
-
+        if(attackerIsP1()){
+            const val = computeDamage(s1, s2);
             p1.classList.add("attack-left");
-
-            hp2 -= dmg;
-            showDamage(p2, dmg);
-
-            setTimeout(() => p1.classList.remove("attack-left"), 200);
-
-        } else {
-
+            hp2 -= val;
+            dmg(p2.offsetLeft+100,260,val);
+            setTimeout(()=>p1.classList.remove("attack-left"),200);
+        }else{
+            const val = computeDamage(s2, s1);
             p2.classList.add("attack-right");
-
-            hp1 -= dmg;
-            showDamage(p1, dmg);
-
-            setTimeout(() => p2.classList.remove("attack-right"), 200);
+            hp1 -= val;
+            dmg(p1.offsetLeft+100,260,val);
+            setTimeout(()=>p2.classList.remove("attack-right"),200);
         }
 
-        if (hp1 < 0) hp1 = 0;
-        if (hp2 < 0) hp2 = 0;
+        if(hp1<0) hp1=0;
+        if(hp2<0) hp2=0;
 
-        updateHP();
+        update();
     }
 
-    const ganador = hp1 <= 0 ? "p2" : "p1";
-    const perdedor = ganador === "p1" ? "p2" : "p1";
+    // 🔥 ESPERAR GANADOR DEL SERVER
+    let ganador = null;
 
-    const w = document.getElementById("winner");
-    w.innerText = "🏆 " + (ganador === "p1" ? d.jugador1 : d.jugador2) + " ganó";
-    w.style.display = "block";
+    for (let i = 0; i < 10; i++) {
+        const r = await fetch("/duelo");
+        const d2 = await r.json();
 
-    /* 🔥 ANIMACIÓN FINAL */
-    document.getElementById(perdedor).classList.add("fade-out");
+        if (d2.ganador) {
+            ganador = d2.ganador;
+            break;
+        }
 
-    setTimeout(() => {
-        document.getElementById(ganador).classList.add("winner-center");
-    }, 400);
+        await sleep(400);
+    }
+
+    if (!ganador) {
+        ganador = hp1 <= 0 ? d.jugador2 : d.jugador1;
+    }
+
+    winnerText.innerText = "🏆 " + ganador + " ganó";
+    winnerText.style.display = "block";
+
+    const g = ganador===d.jugador1 ? p1 : p2;
+    const l = ganador===d.jugador1 ? p2 : p1;
+
+    l.classList.add("fade-out");
+    setTimeout(()=>g.classList.add("winner-center"),400);
+
+    // 🔥 SOLO SI NO EXISTE
+    const check = await fetch("/duelo");
+    const dataCheck = await check.json();
+
+    if (!dataCheck.ganador) {
+        await fetch("/duelo/resultado", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({ganador})
+        });
+    }
+
+    setTimeout(()=>{
+        enDuelo = false;
+    },4000);
 }
 
-function showDamage(player, dmg) {
-    const rect = player.getBoundingClientRect();
-
-    const el = document.createElement("div");
-    el.className = "damage";
-    el.innerText = "-" + dmg;
-
-    el.style.left = rect.left + "px";
-    el.style.top = rect.top + "px";
-
-    document.body.appendChild(el);
-
-    setTimeout(() => el.remove(), 1000);
-}
-
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
+function sleep(ms){
+    return new Promise(r=>setTimeout(r,ms));
 }
 </script>
 

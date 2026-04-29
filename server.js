@@ -24,15 +24,43 @@ function saveUsers(users) {
     fs.writeFileSync(filePath, JSON.stringify(users, null, 2));
 }
 
+function defaultStats() {
+    return {
+        vida: 30,
+        fuerza: 2,
+        defensa: 2,
+        agilidad: 2,
+        velocidad: 2
+    };
+}
+
+function ensureStats(user) {
+    if (!user.stats || typeof user.stats !== "object") {
+        user.stats = defaultStats();
+        return;
+    }
+
+    const defaults = defaultStats();
+    for (const k of Object.keys(defaults)) {
+        const v = Number(user.stats[k]);
+        user.stats[k] = Number.isFinite(v) ? v : defaults[k];
+    }
+}
+
 function ensureUser(users, username) {
     if (!users[username]) {
         users[username] = {
             puntos: 0,
             xp: 0,
             nivel: 1,
-            avatar: "/overlay/avatar.png"
+            avatar: "/overlay/avatar.png",
+            stats: defaultStats()
         };
+        return;
     }
+
+    // migrate old users
+    ensureStats(users[username]);
 }
 
 function addPointsToUser(users, username, amount) {
@@ -92,10 +120,8 @@ app.get("/user/:username", (req, res) => {
     const users = readUsers();
     const user = req.params.username.toLowerCase();
 
-    if (!users[user]) {
-        ensureUser(users, user);
-        saveUsers(users);
-    }
+    ensureUser(users, user);
+    saveUsers(users);
 
     res.json(users[user]);
 });

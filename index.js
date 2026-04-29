@@ -18,6 +18,16 @@ const DEFAULT_AVATAR = REMOTE_API_URL
     ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.png`
     : "http://localhost:3000/overlay/avatar.png";
 
+function defaultStats() {
+    return {
+        vida: 30,
+        fuerza: 2,
+        defensa: 2,
+        agilidad: 2,
+        velocidad: 2
+    };
+}
+
 let users = {};
 let duelCooldown = {};
 
@@ -157,7 +167,11 @@ async function duel(page, user1, user2) {
         jugador1: user1,
         jugador2: user2,
         avatar1: remote1?.avatar || users[user1].avatar || DEFAULT_AVATAR,
-        avatar2: remote2?.avatar || users[user2].avatar || DEFAULT_AVATAR
+        avatar2: remote2?.avatar || users[user2].avatar || DEFAULT_AVATAR,
+        nivel1: Number(remote1?.nivel ?? users[user1].nivel ?? 1) || 1,
+        nivel2: Number(remote2?.nivel ?? users[user2].nivel ?? 1) || 1,
+        stats1: remote1?.stats || defaultStats(),
+        stats2: remote2?.stats || defaultStats()
     });
 
     const ganador = await (async function waitForWinner() {

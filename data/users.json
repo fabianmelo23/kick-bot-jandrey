@@ -1,8 +1,8 @@
 {
   "jandreytv": {
-    "puntos": 60,
-    "xp": 60,
-    "nivel": 1,
+    "puntos": 120,
+    "xp": 20,
+    "nivel": 2,
     "avatar": "http://localhost:3000/overlay/avatar.png"
   },
   "camilo_p14": {
@@ -12,14 +12,14 @@
     "avatar": "http://localhost:3000/overlay/avatar.png"
   },
   "asessint": {
-    "puntos": 25,
-    "xp": 25,
+    "puntos": 30,
+    "xp": 30,
     "nivel": 1,
     "avatar": "http://localhost:3000/overlay/avatar.png"
   },
   "botrix": {
-    "puntos": 10,
-    "xp": 10,
+    "puntos": 40,
+    "xp": 40,
     "nivel": 1,
     "avatar": "http://localhost:3000/overlay/avatar.png"
   },
@@ -36,8 +36,20 @@
     "avatar": "http://localhost:3000/overlay/avatar.png"
   },
   "simpeoalaquesita": {
-    "puntos": 5,
-    "xp": 5,
+    "puntos": 15,
+    "xp": 15,
+    "nivel": 1,
+    "avatar": "http://localhost:3000/overlay/avatar.png"
+  },
+  "randai": {
+    "puntos": 20,
+    "xp": 20,
+    "nivel": 1,
+    "avatar": "http://localhost:3000/overlay/avatar.png"
+  },
+  "thuunderr": {
+    "puntos": 20,
+    "xp": 20,
     "nivel": 1,
     "avatar": "http://localhost:3000/overlay/avatar.png"
   }
