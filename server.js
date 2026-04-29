@@ -36,10 +36,31 @@ function defaultStats() {
 
 function defaultInventory() {
     return {
+        // Se llena/actualiza desde el catálogo para que todos vean las skins del panel.
         skins: ["default"],
         armas: [],
         mascotas: []
     };
+}
+
+function getSkinsCatalog() {
+    try {
+        const catalogPath = path.join(__dirname, "panel", "skins.json");
+        if (!fs.existsSync(catalogPath)) return { skins: [{ id: "default" }] };
+        const parsed = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+        if (!parsed || !Array.isArray(parsed.skins)) return { skins: [{ id: "default" }] };
+        return parsed;
+    } catch {
+        return { skins: [{ id: "default" }] };
+    }
+}
+
+function getCatalogSkinIds() {
+    const catalog = getSkinsCatalog();
+    const ids = catalog.skins
+        .map(s => String(s?.id || "").trim())
+        .filter(Boolean);
+    return ids.length ? Array.from(new Set(ids)) : ["default"];
 }
 
 function defaultAvatarUrl() {
@@ -50,11 +71,15 @@ function defaultAvatarUrl() {
 
 function skinToAvatarUrl(skinId) {
     // Minimal catalog mapping. Keep URLs relative so it works on Render and local.
-    switch (skinId) {
-        case "default":
-        default:
-            return defaultAvatarUrl();
-    }
+    const id = String(skinId || "default").trim() || "default";
+    if (id === "default") return defaultAvatarUrl();
+
+    // Convention: store skins at /overlay/skins/<id>.png
+    const filePath = path.join(__dirname, "overlay", "skins", `${id}.png`);
+    if (fs.existsSync(filePath)) return `/overlay/skins/${id}.png`;
+
+    // Fallback if missing
+    return defaultAvatarUrl();
 }
 
 function ensureStats(user) {
@@ -72,12 +97,18 @@ function ensureStats(user) {
 
 function ensureInventory(user) {
     const defaults = defaultInventory();
+    const catalogIds = getCatalogSkinIds();
     if (!user.inventory || typeof user.inventory !== "object") {
         user.inventory = defaults;
     } else {
         if (!Array.isArray(user.inventory.skins)) user.inventory.skins = defaults.skins;
         if (!Array.isArray(user.inventory.armas)) user.inventory.armas = defaults.armas;
         if (!Array.isArray(user.inventory.mascotas)) user.inventory.mascotas = defaults.mascotas;
+    }
+
+    // Make catalog skins available by default (free skins).
+    for (const id of catalogIds) {
+        if (!user.inventory.skins.includes(id)) user.inventory.skins.push(id);
     }
 
     if (!user.selectedSkin || typeof user.selectedSkin !== "string") {
@@ -244,8 +275,9 @@ app.post("/api/profile/:username", requireToken, (req, res) => {
         selectedSkin = req.body.selectedSkin.trim();
     }
 
-    if (!u.inventory?.skins?.includes(selectedSkin)) {
-        return res.status(400).json({ error: "selectedSkin no está en el inventario" });
+    const catalogIds = getCatalogSkinIds();
+    if (!catalogIds.includes(selectedSkin)) {
+        return res.status(400).json({ error: "selectedSkin no existe en el catálogo" });
     }
 
     // stats
