@@ -17,8 +17,8 @@ const RANKING_URL = process.env.RANKING_URL || (REMOTE_API_URL ? REMOTE_API_URL.
 const PROFILE_URL = process.env.PROFILE_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 
 const DEFAULT_AVATAR = REMOTE_API_URL
-    ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.svg`
-    : "http://localhost:3000/overlay/avatar.svg";
+    ? `${REMOTE_API_URL.replace(/\/+$/, "")}/overlay/avatar.png`
+    : "http://localhost:3000/overlay/avatar.png";
 
 const BROWSER_EXECUTABLE_PATH = process.env.BROWSER_EXECUTABLE_PATH || "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe";
 const BROWSER_USER_DATA_DIR = process.env.BROWSER_USER_DATA_DIR || path.join(__dirname, "perfil-bot");
@@ -140,12 +140,32 @@ function getKey(user1, user2) {
 
 async function sendMessage(page, text) {
     try {
-        const input = await page.$('[contenteditable="true"]');
+        if (!text) return;
+
+        // sanitize to avoid weird control chars / newlines
+        const safeText = String(text)
+            .replace(/[\r\n\t]+/g, " ")
+            .replace(/[\u0000-\u001F\u007F]/g, "")
+            .trim()
+            .slice(0, 220);
+
+        if (!safeText) return;
+
+        const input = await page.waitForSelector('[contenteditable="true"]', { timeout: 7000 });
         if (!input) return;
 
-        await input.click();
-        await page.keyboard.type(text);
-        await page.keyboard.press("Enter");
+        // Focus + clear existing content (prevents first-send garbage)
+        await input.evaluate(el => {
+            el.focus();
+            // Clear contenteditable safely
+            el.innerText = "";
+        });
+
+        // Use CDP input so it works even if Brave isn't focused
+        const client = await page.target().createCDPSession();
+        await client.send("Input.insertText", { text: safeText });
+        await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
 
     } catch {}
 }
@@ -235,6 +255,10 @@ async function duel(page, user1, user2) {
             ]
         });
 
+    browser.on("disconnected", () => {
+        console.log("⚠️ Navegador desconectado. Si usas remote debugging, no cierres Brave.");
+    });
+
     const page = await browser.newPage();
     try {
         const ua = await browser.userAgent();
@@ -249,6 +273,14 @@ async function duel(page, user1, user2) {
     const client = await page.target().createCDPSession();
     await client.send("Network.enable");
 
+    let lastChatMs = Date.now();
+    const heartbeat = setInterval(() => {
+        const secs = Math.floor((Date.now() - lastChatMs) / 1000);
+        if (secs >= 30) {
+            console.log(`⏳ Sin mensajes capturados aún (${secs}s).`);
+        }
+    }, 30000);
+
     client.on("Network.webSocketFrameReceived", async (event) => {
         try {
             const payload = event.response.payloadData;
@@ -262,6 +294,7 @@ async function duel(page, user1, user2) {
             const message = chat.content.trim().toLowerCase();
 
             console.log(`💬 ${username}: ${message}`);
+            lastChatMs = Date.now();
 
             if (message.startsWith("!duelo")) {
 
@@ -290,5 +323,8 @@ async function duel(page, user1, user2) {
     });
 
     console.log("✅ Bot listo escuchando chat...");
+
+    // Keep the process alive even if the browser connection drops.
+    await new Promise(() => {});
 
 })();

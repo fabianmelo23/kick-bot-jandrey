@@ -42,12 +42,18 @@ function defaultInventory() {
     };
 }
 
+function defaultAvatarUrl() {
+    // Prefer PNG if present (user-provided), fallback to SVG.
+    const pngPath = path.join(__dirname, "overlay", "avatar.png");
+    return fs.existsSync(pngPath) ? "/overlay/avatar.png" : "/overlay/avatar.svg";
+}
+
 function skinToAvatarUrl(skinId) {
     // Minimal catalog mapping. Keep URLs relative so it works on Render and local.
     switch (skinId) {
         case "default":
         default:
-            return "/overlay/avatar.svg";
+            return defaultAvatarUrl();
     }
 }
 
@@ -141,8 +147,7 @@ function sanitizeAvatar(avatar) {
     if (typeof avatar !== "string") return null;
     const v = avatar.trim();
     if (!v) return null;
-    if (v.includes("localhost:3000")) return "/overlay/avatar.svg";
-    if (v === "/overlay/avatar.png") return "/overlay/avatar.svg";
+    if (v.includes("localhost:3000")) return defaultAvatarUrl();
     return v;
 }
 
