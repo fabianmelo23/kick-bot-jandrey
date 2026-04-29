@@ -6,7 +6,7 @@ const axios = require("axios");
 puppeteer.use(StealthPlugin());
 
 const URL = "https://kick.com/jandreytv";
-const DATA_FILE = "./users.json"; // ✅ CORREGIDO: ruta correcta
+const DATA_FILE = "./users.json";
 const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 
 const DEFAULT_AVATAR = "http://localhost:3000/overlay/avatar.png";
@@ -14,7 +14,6 @@ const DEFAULT_AVATAR = "http://localhost:3000/overlay/avatar.png";
 let users = {};
 let duelCooldown = {};
 
-// ✅ CORREGIDO: Mejor manejo de errores al cargar datos
 if (fs.existsSync(DATA_FILE)) {
     try {
         users = JSON.parse(fs.readFileSync(DATA_FILE));
@@ -89,7 +88,6 @@ async function sendMessage(page, text) {
 }
 
 async function duel(page, user1, user2, browser) {
-    // ✅ CORREGIDO: Validación para evitar autoduelos
     if (user2 === user1) {
         await sendMessage(page, `❌ ${user1} no puedes duelearte contigo mismo`);
         return;
@@ -133,7 +131,6 @@ async function duel(page, user1, user2, browser) {
     console.log("⚔️ Duelo ejecutado:", user1, "vs", user2);
 }
 
-// ✅ CONFIGURADO: Brave Browser como navegador por defecto
 // Rutas de Brave según sistema operativo
 const BRAVE_PATHS = {
     win32: "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
@@ -152,10 +149,21 @@ const BRAVE_PATHS = {
             throw new Error(`Sistema operativo no soportado: ${platform}`);
         }
 
+        // ✅ MEJORADO: Argumentos avanzados para evitar detección de automatización
         const launchOptions = {
             headless: false,
             executablePath: bravePath,
-            args: ["--profile-directory=Default"]
+            args: [
+                "--profile-directory=Default",
+                "--disable-blink-features=AutomationControlled", // ✅ Oculta que es automatizado
+                "--disable-dev-shm-usage", // Evita problemas de memoria
+                "--no-first-run", // No muestra primera ejecución
+                "--no-default-browser-check", // No verifica navegador por defecto
+                "--disable-extensions", // Desactiva extensiones
+                "--disable-sync", // Desactiva sincronización
+                "--disable-plugins", // Desactiva plugins
+            ],
+            userDataDir: undefined // Permitir usar perfil por defecto
         };
 
         // Permitir override con variable de entorno si es necesario
@@ -169,6 +177,24 @@ const BRAVE_PATHS = {
         const browser = await puppeteer.launch(launchOptions);
 
         const page = await browser.newPage();
+
+        // ✅ MEJORADO: Ocultar características de automatización
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, "webdriver", {
+                get: () => undefined,
+            });
+            Object.defineProperty(navigator, "plugins", {
+                get: () => [1, 2, 3, 4, 5],
+            });
+            Object.defineProperty(navigator, "languages", {
+                get: () => ["es-ES", "es"],
+            });
+        });
+
+        // ✅ User Agent más realista
+        await page.setUserAgent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Brave/1.73.104 Chrome/131.0.0.0 Safari/537.36"
+        );
 
         console.log("🌐 Abriendo Kick...");
         await page.goto(URL, { waitUntil: "networkidle2" });
@@ -196,7 +222,6 @@ const BRAVE_PATHS = {
                 console.log(`💬 ${username}: ${message}`);
 
                 if (message.startsWith("!duelo")) {
-                    // ✅ CORREGIDO: Regex mejorada para capturar usernames con guiones y puntos
                     const match = message.match(/@([\w.-]+)/);
                     if (!match) return;
 
