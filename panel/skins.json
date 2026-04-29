@@ -4,11 +4,11 @@
       "id": "default",
       "name": "Default",
       "imageUrl": "/overlay/avatar.png"
+    },
+    {
+      "id": "lufi",
+      "name": "Lufi",
+      "imageUrl": "/overlay/skins/lufi.png"
     }
   ]
-}
-{
-  "id": "lufi",
-  "name": "Lufi",
-  "imageUrl": "/overlay/skins/lufi.png"
 }
