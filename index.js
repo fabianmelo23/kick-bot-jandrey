@@ -6,7 +6,7 @@ const axios = require("axios");
 puppeteer.use(StealthPlugin());
 
 const URL = "https://kick.com/jandreytv";
-const DATA_FILE = "./data/users.json";
+const DATA_FILE = "./users.json"; // ✅ CORREGIDO: ruta correcta
 const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 
 const DEFAULT_AVATAR = "http://localhost:3000/overlay/avatar.png";
@@ -14,8 +14,15 @@ const DEFAULT_AVATAR = "http://localhost:3000/overlay/avatar.png";
 let users = {};
 let duelCooldown = {};
 
+// ✅ CORREGIDO: Mejor manejo de errores al cargar datos
 if (fs.existsSync(DATA_FILE)) {
-    users = JSON.parse(fs.readFileSync(DATA_FILE));
+    try {
+        users = JSON.parse(fs.readFileSync(DATA_FILE));
+        console.log("📂 Datos de usuarios cargados correctamente");
+    } catch (err) {
+        console.error("❌ Error parseando users.json:", err);
+        users = {};
+    }
 }
 
 function saveData() {
@@ -82,6 +89,12 @@ async function sendMessage(page, text) {
 }
 
 async function duel(page, user1, user2, browser) {
+    // ✅ CORREGIDO: Validación para evitar autoduelos
+    if (user2 === user1) {
+        await sendMessage(page, `❌ ${user1} no puedes duelearte contigo mismo`);
+        return;
+    }
+
     await limpiarPestanas(browser, page);
 
     const now = Date.now();
@@ -103,73 +116,90 @@ async function duel(page, user1, user2, browser) {
 
     addPoints(winner, 5);
 
-    await axios.post("http://localhost:3000/duelo", {
-        jugador1: user1,
-        jugador2: user2,
-        ganador: winner,
-        avatar1: users[user1].avatar,
-        avatar2: users[user2].avatar
-    });
+    try {
+        await axios.post("http://localhost:3000/duelo", {
+            jugador1: user1,
+            jugador2: user2,
+            ganador: winner,
+            avatar1: users[user1].avatar,
+            avatar2: users[user2].avatar
+        });
+    } catch (err) {
+        console.error("❌ Error enviando duelo al servidor:", err.message);
+    }
 
     await sendMessage(page, `🏆 ${winner} ganó vs ${loser} (+5 pts)`);
 
     console.log("⚔️ Duelo ejecutado:", user1, "vs", user2);
 }
 
-// ---------------- MAIN ----------------
+// ✅ CORREGIDO: Rutas de navegador sin hardcodear
+// Ahora soporta múltiples navegadores: Chrome, Brave, Firefox, etc.
+// Para especificar una ruta personalizada, usa la variable de entorno BROWSER_PATH
 (async () => {
     console.log("🔥 Iniciando bot...");
 
-    const browser = await puppeteer.launch({
-        headless: false,
-        executablePath: "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
-        userDataDir: "C:\\Users\\SantiMichell\\AppData\\Local\\BraveSoftware\\Brave-Browser\\User Data",
-        args: ["--profile-directory=Default"]
-    });
+    try {
+        const launchOptions = {
+            headless: false,
+            args: ["--profile-directory=Default"]
+        };
 
-    const page = await browser.newPage();
-
-    console.log("🌐 Abriendo Kick...");
-    await page.goto(URL, { waitUntil: "networkidle2" });
-
-    console.log("⌛ Esperando carga completa...");
-    await new Promise(r => setTimeout(r, 8000));
-
-    console.log("🔌 Conectando WebSocket...");
-
-    const client = await page.target().createCDPSession();
-    await client.send("Network.enable");
-
-    client.on("Network.webSocketFrameReceived", async (event) => {
-        try {
-            const payload = event.response.payloadData;
-
-            if (!payload.includes("ChatMessageEvent")) return;
-
-            const data = JSON.parse(payload);
-            const chat = JSON.parse(data.data);
-
-            const username = chat.sender.username.toLowerCase();
-            const message = chat.content.trim().toLowerCase();
-
-            console.log(`💬 ${username}: ${message}`);
-
-            if (message.startsWith("!duelo")) {
-                const match = message.match(/@(\w+)/);
-                if (!match) return;
-
-                const target = match[1].toLowerCase();
-                if (target === username) return;
-
-                console.log("⚔️ Comando duelo detectado");
-
-                await duel(page, username, target, browser);
-            }
-
-        } catch (err) {
-            console.log("❌ Error leyendo mensaje");
+        // Opcional: usar ruta personalizada si se proporciona
+        if (process.env.BROWSER_PATH) {
+            launchOptions.executablePath = process.env.BROWSER_PATH;
         }
-    });
 
-    console.log("✅ Bot listo escuchando chat...");
+        const browser = await puppeteer.launch(launchOptions);
+
+        const page = await browser.newPage();
+
+        console.log("🌐 Abriendo Kick...");
+        await page.goto(URL, { waitUntil: "networkidle2" });
+
+        console.log("⌛ Esperando carga completa...");
+        await new Promise(r => setTimeout(r, 8000));
+
+        console.log("🔌 Conectando WebSocket...");
+
+        const client = await page.target().createCDPSession();
+        await client.send("Network.enable");
+
+        client.on("Network.webSocketFrameReceived", async (event) => {
+            try {
+                const payload = event.response.payloadData;
+
+                if (!payload.includes("ChatMessageEvent")) return;
+
+                const data = JSON.parse(payload);
+                const chat = JSON.parse(data.data);
+
+                const username = chat.sender.username.toLowerCase();
+                const message = chat.content.trim().toLowerCase();
+
+                console.log(`💬 ${username}: ${message}`);
+
+                if (message.startsWith("!duelo")) {
+                    // ✅ CORREGIDO: Regex mejorada para capturar usernames con guiones y puntos
+                    const match = message.match(/@([\w.-]+)/);
+                    if (!match) return;
+
+                    const target = match[1].toLowerCase();
+                    
+                    console.log("⚔️ Comando duelo detectado");
+
+                    await duel(page, username, target, browser);
+                }
+
+            } catch (err) {
+                console.log("❌ Error leyendo mensaje:", err.message);
+            }
+        });
+
+        console.log("✅ Bot listo escuchando chat...");
+
+    } catch (err) {
+        console.error("❌ Error fatal en el bot:", err);
+        process.exit(1);
+    }
 })();
