@@ -105,6 +105,8 @@ function defaultStats() {
     };
 }
 
+const STAT_KEYS = Object.keys(defaultStats());
+
 function defaultInventory() {
     return {
         // Se llena/actualiza desde el catálogo para que todos vean las skins del panel.
@@ -203,6 +205,46 @@ function ensureInventory(user) {
     }
 }
 
+function ensureHabilidad(user) {
+    let h = Number(user.habilidadProgreso);
+    if (!Number.isFinite(h) || h < 0) h = 0;
+    let pe = Number(user.puntosEstadistica);
+    if (!Number.isFinite(pe) || pe < 0) pe = 0;
+    while (h >= 50) {
+        h -= 50;
+        pe += 1;
+    }
+    user.habilidadProgreso = h;
+    user.puntosEstadistica = pe;
+}
+
+function applyHabilidadDuelWin(users, username) {
+    ensureUser(users, username);
+    const u = users[username];
+    u.habilidadProgreso = (Number(u.habilidadProgreso) || 0) + 1;
+    u.puntosEstadistica = Math.max(0, Number(u.puntosEstadistica) || 0);
+    while (u.habilidadProgreso >= 50) {
+        u.habilidadProgreso -= 50;
+        u.puntosEstadistica += 1;
+    }
+}
+
+function publicProfileUser(u, username) {
+    ensureHabilidad(u);
+    return {
+        username,
+        puntos: u.puntos,
+        xp: u.xp,
+        nivel: u.nivel,
+        avatar: u.avatar,
+        stats: u.stats,
+        selectedSkin: u.selectedSkin,
+        inventory: u.inventory,
+        habilidadProgreso: Number(u.habilidadProgreso) || 0,
+        puntosEstadistica: Math.max(0, Number(u.puntosEstadistica) || 0)
+    };
+}
+
 function ensureUser(users, username) {
     if (!users[username]) {
         users[username] = {
@@ -212,7 +254,9 @@ function ensureUser(users, username) {
             avatar: skinToAvatarUrl("default"),
             stats: defaultStats(),
             inventory: defaultInventory(),
-            selectedSkin: "default"
+            selectedSkin: "default",
+            habilidadProgreso: 0,
+            puntosEstadistica: 0
         };
         return;
     }
@@ -220,14 +264,18 @@ function ensureUser(users, username) {
     // migrate old users
     ensureStats(users[username]);
     ensureInventory(users[username]);
+    ensureHabilidad(users[username]);
 }
 
-function addPointsToUser(users, username, amount) {
+function addPointsToUser(users, username, amount, applyXp = true) {
     ensureUser(users, username);
     const user = users[username];
 
     const delta = Number(amount) || 0;
-    user.puntos = Number(user.puntos || 0) + delta;
+    user.puntos = Math.max(0, Number(user.puntos || 0) + delta);
+
+    if (!applyXp) return;
+
     user.xp = Number(user.xp || 0) + delta;
 
     let xpNecesaria = Number(user.nivel || 1) * 100;
@@ -390,16 +438,7 @@ app.get("/api/profile/:username", requireUserSession, (req, res) => {
     saveUsers(users);
 
     const u = users[username];
-    return res.json({
-        username,
-        puntos: u.puntos,
-        xp: u.xp,
-        nivel: u.nivel,
-        avatar: u.avatar,
-        stats: u.stats,
-        selectedSkin: u.selectedSkin,
-        inventory: u.inventory
-    });
+    return res.json(publicProfileUser(u, username));
 });
 
 app.post("/api/profile/:username", requireToken, requireUserSession, (req, res) => {
@@ -432,17 +471,30 @@ app.post("/api/profile/:username", requireToken, requireUserSession, (req, res) 
 
     return res.json({
         ok: true,
-        user: {
-            username,
-            puntos: u.puntos,
-            xp: u.xp,
-            nivel: u.nivel,
-            avatar: u.avatar,
-            stats: u.stats,
-            selectedSkin: u.selectedSkin,
-            inventory: u.inventory
-        }
+        user: publicProfileUser(u, username)
     });
+});
+
+app.post("/api/profile/:username/spend-stat", requireUserSession, (req, res) => {
+    const users = readUsers();
+    const username = req.params.username.toLowerCase();
+    const stat = String(req.body?.stat || "").toLowerCase().trim();
+
+    ensureUser(users, username);
+    const u = users[username];
+
+    if (!STAT_KEYS.includes(stat)) return res.status(400).json({ error: "stat inválida" });
+
+    const bank = Math.max(0, Number(u.puntosEstadistica) || 0);
+    if (bank < 1) return res.status(400).json({ error: "No tienes puntos para gastar" });
+
+    ensureStats(u);
+    u.puntosEstadistica = bank - 1;
+    u.stats[stat] = Number(u.stats[stat] || 0) + 1;
+
+    saveUsers(users);
+
+    return res.json({ ok: true, user: publicProfileUser(u, username) });
 });
 
 // Public: allow selecting a skin without token (stats remain protected)
@@ -473,16 +525,7 @@ app.post("/api/profile/:username/skin", requireUserSession, (req, res) => {
 
     return res.json({
         ok: true,
-        user: {
-            username,
-            puntos: u.puntos,
-            xp: u.xp,
-            nivel: u.nivel,
-            avatar: u.avatar,
-            stats: u.stats,
-            selectedSkin: u.selectedSkin,
-            inventory: u.inventory
-        }
+        user: publicProfileUser(u, username)
     });
 });
 
@@ -493,6 +536,7 @@ app.post("/api/points", requireToken, (req, res) => {
     const username = String(req.body?.username || "").toLowerCase().trim();
     const amount = Number(req.body?.amount || 0);
     const avatar = sanitizeAvatar(req.body?.avatar);
+    const applyXp = req.body?.applyXp !== false;
 
     if (!username) return res.status(400).json({ error: "username requerido" });
     if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: "amount inválido" });
@@ -504,10 +548,21 @@ app.post("/api/points", requireToken, (req, res) => {
         users[username].avatar = avatar;
     }
 
-    addPointsToUser(users, username, amount);
+    addPointsToUser(users, username, amount, applyXp);
     saveUsers(users);
 
     return res.json({ ok: true, user: users[username] });
+});
+
+app.post("/api/duel/habilidad-win", requireToken, (req, res) => {
+    const username = String(req.body?.username || "").toLowerCase().trim();
+    if (!username) return res.status(400).json({ error: "username requerido" });
+
+    const users = readUsers();
+    applyHabilidadDuelWin(users, username);
+    saveUsers(users);
+
+    return res.json({ ok: true, user: publicProfileUser(users[username], username) });
 });
 
 /* =========================

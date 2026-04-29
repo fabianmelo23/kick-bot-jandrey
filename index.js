@@ -51,40 +51,63 @@ function saveData() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
 }
 
+function ensureHabilidadLocal(user) {
+    let h = Number(user.habilidadProgreso);
+    if (!Number.isFinite(h) || h < 0) h = 0;
+    let pe = Number(user.puntosEstadistica);
+    if (!Number.isFinite(pe) || pe < 0) pe = 0;
+    while (h >= 50) {
+        h -= 50;
+        pe += 1;
+    }
+    user.habilidadProgreso = h;
+    user.puntosEstadistica = pe;
+}
+
 function ensureUser(username) {
     if (!users[username]) {
         users[username] = {
             puntos: 0,
             xp: 0,
             nivel: 1,
-            avatar: DEFAULT_AVATAR
+            avatar: DEFAULT_AVATAR,
+            habilidadProgreso: 0,
+            puntosEstadistica: 0
         };
         saveData();
+        return;
     }
+    const u = users[username];
+    if (u.habilidadProgreso === undefined) u.habilidadProgreso = 0;
+    if (u.puntosEstadistica === undefined) u.puntosEstadistica = 0;
+    ensureHabilidadLocal(u);
 }
 
 /* =========================
    RPG
 ========================= */
-function addPoints(username, amount) {
+function addPoints(username, amount, applyXp = true) {
 
     loadData();
     ensureUser(username);
 
     let user = users[username];
 
-    user.puntos += amount;
-    user.xp += amount;
+    user.puntos = Math.max(0, Number(user.puntos || 0) + amount);
 
-    let xpNecesaria = user.nivel * 100;
+    if (applyXp) {
+        user.xp += amount;
 
-    while (user.xp >= xpNecesaria) {
-        user.xp -= xpNecesaria;
-        user.nivel += 1;
+        let xpNecesaria = user.nivel * 100;
 
-        console.log(`🆙 ${username} subió a nivel ${user.nivel}`);
+        while (user.xp >= xpNecesaria) {
+            user.xp -= xpNecesaria;
+            user.nivel += 1;
 
-        xpNecesaria = user.nivel * 100;
+            console.log(`🆙 ${username} subió a nivel ${user.nivel}`);
+
+            xpNecesaria = user.nivel * 100;
+        }
     }
 
     saveData();
@@ -93,12 +116,40 @@ function addPoints(username, amount) {
         axios.post(`${REMOTE_API_URL.replace(/\/+$/, "")}/api/points`, {
             username,
             amount,
+            applyXp,
             avatar: user.avatar
         }, {
             headers: REMOTE_API_TOKEN ? { "x-api-token": REMOTE_API_TOKEN } : undefined,
             timeout: 8000
         }).catch(() => {});
     }
+}
+
+/** @returns {number} puntos de stat ganados en este duelo (0 si solo subió la barra) */
+function addHabilidadDuelWin(username) {
+    loadData();
+    ensureUser(username);
+    const u = users[username];
+    const bankBefore = Math.max(0, Number(u.puntosEstadistica) || 0);
+    u.habilidadProgreso = (Number(u.habilidadProgreso) || 0) + 1;
+    u.puntosEstadistica = bankBefore;
+    while (u.habilidadProgreso >= 50) {
+        u.habilidadProgreso -= 50;
+        u.puntosEstadistica += 1;
+    }
+    const statPointsGained = u.puntosEstadistica - bankBefore;
+    saveData();
+
+    if (REMOTE_API_URL) {
+        axios.post(`${REMOTE_API_URL.replace(/\/+$/, "")}/api/duel/habilidad-win`, {
+            username
+        }, {
+            headers: REMOTE_API_TOKEN ? { "x-api-token": REMOTE_API_TOKEN } : undefined,
+            timeout: 8000
+        }).catch(() => {});
+    }
+
+    return statPointsGained;
 }
 
 function getRankingTop(limit = 5) {
@@ -228,8 +279,18 @@ async function duel(page, user1, user2) {
     const perdedor = ganador === user1 ? user2 : user1;
 
     addPoints(ganador, 5);
+    addPoints(perdedor, -1, false);
+    const statGanados = addHabilidadDuelWin(ganador);
 
-    await sendMessage(page, `🏆 ${ganador} ganó vs ${perdedor} (+5 pts)`);
+    await sendMessage(page, `🏆 ${ganador} ganó vs ${perdedor} (+5 / -1 pts)`);
+
+    if (statGanados > 0) {
+        const extra =
+            statGanados === 1
+                ? `⭐ ${ganador}: ¡punto de stat disponible! Entra al panel de perfil y pulsa + en la stat que quieras subir.`
+                : `⭐ ${ganador}: ¡${statGanados} puntos de stat disponibles! Panel de perfil → + en cada estadística.`;
+        await sendMessage(page, extra);
+    }
 
     console.log("⚔️ Duelo finalizado:", ganador);
 }
