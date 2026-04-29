@@ -75,8 +75,8 @@
     }
 
     .avatarBox{
-      width: 158px;
-      height: 158px;
+      width: 132px;
+      height: 132px;
       border-radius: 14px;
       background: rgba(255,255,255,0.05);
       border: 1px solid var(--border);
@@ -86,8 +86,8 @@
       overflow:hidden;
     }
     .avatarBox img{
-      width: 134px;
-      height: 134px;
+      width: 126px;
+      height: 126px;
       image-rendering: pixelated;
       object-fit: contain;
       filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
@@ -431,7 +431,7 @@
             </div>
             <div class="skillBar"><div id="skillBarFill"></div></div>
             <div class="hint" id="skillBankHint" style="margin-top:6px;font-size:11px;line-height:1.35;"></div>
-            <div class="hint" id="pointsText">Puntos: 0</div>
+            <div class="hint" id="pointsText">Puntos ranking: 0</div>
           </div>
         </div>
 
@@ -584,7 +584,7 @@
           : "Cada victoria en duelo suma 1 a esta barra. Al llegar a 50 obtienes 1 punto para subir una estadística.";
       }
 
-      elPointsText.textContent = `Puntos: ${Number(profile.puntos) || 0}`;
+      elPointsText.textContent = `Puntos ranking: ${Number(profile.puntos) || 0}`;
 
       const s = profile.stats || {};
       const canSpend = bank > 0;
