@@ -434,8 +434,13 @@ app.get("/user/:username", (req, res) => {
     const user = req.params.username.toLowerCase();
 
     const existed = Boolean(users[user]);
+    const hadStats = Boolean(users[user]?.stats);
+    const hadInventory = Boolean(users[user]?.inventory);
+    const hadSkin = typeof users[user]?.selectedSkin === "string";
+    const hadHabilidad = users[user]?.habilidadProgreso !== undefined && users[user]?.puntosEstadistica !== undefined;
     ensureUser(users, user);
-    if (!existed) {
+    // Persist only when we created OR migrated missing fields
+    if (!existed || !hadStats || !hadInventory || !hadSkin || !hadHabilidad) {
         saveUsers(users);
     }
 
@@ -450,8 +455,13 @@ app.get("/api/profile/:username", requireUserSession, (req, res) => {
     const username = req.params.username.toLowerCase();
 
     const existed = Boolean(users[username]);
+    const hadStats = Boolean(users[username]?.stats);
+    const hadInventory = Boolean(users[username]?.inventory);
+    const hadSkin = typeof users[username]?.selectedSkin === "string";
+    const hadHabilidad = users[username]?.habilidadProgreso !== undefined && users[username]?.puntosEstadistica !== undefined;
     ensureUser(users, username);
-    if (!existed) {
+    // Persist only when we created OR migrated missing fields
+    if (!existed || !hadStats || !hadInventory || !hadSkin || !hadHabilidad) {
         saveUsers(users);
     }
 
