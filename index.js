@@ -9,7 +9,8 @@ const axios = require("axios");
 puppeteer.use(StealthPlugin());
 
 const URL = "https://kick.com/jandreytv";
-const DATA_FILE = "./data/users.json";
+/** Misma ruta que server.js; si no, el bot lee otro users.json según la carpeta desde la que arranques node. */
+const DATA_FILE = path.join(__dirname, "data", "users.json");
 
 function panelCacheQuery() {
     try {
@@ -22,8 +23,23 @@ function panelCacheQuery() {
 const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 const REMOTE_API_URL = process.env.REMOTE_API_URL || "";
 const REMOTE_API_TOKEN = process.env.REMOTE_API_TOKEN || "";
-/** API del Express local (mismo users.json que el panel); siempre se consulta además del remoto. */
-const LOCAL_USER_API = process.env.LOCAL_USER_API || "http://127.0.0.1:3000";
+/** Puerto del Express donde corre el panel (mismo que server.js PORT). */
+const LOCAL_USER_PORT = process.env.LOCAL_USER_PORT || "3000";
+
+function localApiBases() {
+    const custom = process.env.LOCAL_USER_API && String(process.env.LOCAL_USER_API).trim();
+    if (custom) return [custom.replace(/\/+$/, "")];
+    return [
+        `http://127.0.0.1:${LOCAL_USER_PORT}`,
+        `http://localhost:${LOCAL_USER_PORT}`
+    ];
+}
+
+function getDuelServerOrigin() {
+    const d = process.env.DUEL_SERVER_URL && String(process.env.DUEL_SERVER_URL).trim();
+    if (d) return d.replace(/\/+$/, "");
+    return localApiBases()[0];
+}
 const RANKING_URL = process.env.RANKING_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 const PROFILE_URL = process.env.PROFILE_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 
@@ -184,8 +200,8 @@ function getRankingTop(limit = 5) {
 }
 
 /**
- * Stats para el overlay: mezcla archivo del bot + GET /user en Render + GET /user en Express local.
- * Por stat usa el máximo (evita vida 30 del remoto si el panel ya guardó 31 en otro origen).
+ * Stats para el overlay: GET /user en Express local primero (ahí guarda el panel), luego Render,
+ * más el archivo del bot. Por stat usa el máximo entre fuentes.
  */
 async function fetchDuelPlayer(username) {
     const u = String(username || "").toLowerCase();
@@ -194,6 +210,15 @@ async function fetchDuelPlayer(username) {
     const localRow = users[u] || {};
 
     const fromApi = [];
+    for (const base of localApiBases()) {
+        try {
+            const res = await axios.get(`${base}/user/${encodeURIComponent(u)}`, { timeout: 5000 });
+            if (res?.data && typeof res.data === "object") {
+                fromApi.push(res.data);
+                break;
+            }
+        } catch {}
+    }
     if (REMOTE_API_URL) {
         try {
             const res = await axios.get(
@@ -203,13 +228,6 @@ async function fetchDuelPlayer(username) {
             if (res?.data && typeof res.data === "object") fromApi.push(res.data);
         } catch {}
     }
-    try {
-        const res = await axios.get(
-            `${LOCAL_USER_API.replace(/\/+$/, "")}/user/${encodeURIComponent(u)}`,
-            { timeout: 4000 }
-        );
-        if (res?.data && typeof res.data === "object") fromApi.push(res.data);
-    } catch {}
 
     const defaults = defaultStats();
     const stats = { ...defaults };
@@ -299,7 +317,7 @@ async function duel(page, user1, user2) {
     const p2 = await fetchDuelPlayer(user2);
     const seed = Date.now();
 
-    await axios.post("http://localhost:3000/duelo", {
+    await axios.post(`${getDuelServerOrigin()}/duelo`, {
         jugador1: user1,
         jugador2: user2,
         avatar1: p1.avatar,
@@ -318,7 +336,7 @@ async function duel(page, user1, user2) {
 
         while (Date.now() - startedAt < timeoutMs) {
             try {
-                const res = await axios.get("http://localhost:3000/duelo");
+                const res = await axios.get(`${getDuelServerOrigin()}/duelo`);
                 const g = res?.data?.ganador;
                 if (g) return String(g).toLowerCase();
             } catch {}
