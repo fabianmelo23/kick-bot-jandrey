@@ -665,7 +665,34 @@ app.post("/api/admin/reset-all", requireToken, (req, res) => {
 
     saveUsers(users);
 
-    return res.json({ ok: true, count: Object.keys(users).length });
+    let storage = {};
+    try {
+        const st = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+        storage = {
+            usersFile: filePath,
+            exists: Boolean(st),
+            size: st ? st.size : 0,
+            mtimeMs: st ? st.mtimeMs : null
+        };
+    } catch {}
+
+    return res.json({ ok: true, count: Object.keys(users).length, storage });
+});
+
+app.get("/api/admin/storage-info", requireToken, (req, res) => {
+    let storage = {};
+    try {
+        const st = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+        storage = {
+            usersFile: filePath,
+            exists: Boolean(st),
+            size: st ? st.size : 0,
+            mtimeMs: st ? st.mtimeMs : null
+        };
+    } catch (e) {
+        return res.status(500).json({ error: "No se pudo leer users file", detail: String(e?.message || e) });
+    }
+    return res.json({ ok: true, storage });
 });
 
 /* =========================
