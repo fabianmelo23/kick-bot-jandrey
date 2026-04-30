@@ -62,6 +62,28 @@ function defaultStats() {
     };
 }
 
+/**
+ * Al guardar, el panel (server.js) y el bot pisan el mismo users.json.
+ * Las stats las sube solo el panel (+); el duelo solo puntos/xp. Sin esto,
+ * saveData del bot podía volver a escribir vida 30 y borrar el 31 del panel.
+ */
+function mergeUserForSave(diskRow, memRow) {
+    const d = diskRow && typeof diskRow === "object" ? diskRow : {};
+    const m = memRow && typeof memRow === "object" ? memRow : {};
+    const out = { ...d, ...m };
+    const defs = defaultStats();
+    out.stats = { ...defs };
+    for (const k of Object.keys(defs)) {
+        const a = Number(d.stats?.[k]);
+        const b = Number(m.stats?.[k]);
+        const vals = [defs[k]];
+        if (Number.isFinite(a)) vals.push(a);
+        if (Number.isFinite(b)) vals.push(b);
+        out.stats[k] = Math.max(...vals);
+    }
+    return out;
+}
+
 let users = {};
 let duelCooldown = {};
 
@@ -75,7 +97,20 @@ function loadData() {
 }
 
 function saveData() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
+    let disk = {};
+    if (fs.existsSync(DATA_FILE)) {
+        try {
+            disk = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+        } catch {}
+    }
+    const out = { ...disk };
+    for (const un of Object.keys(users)) {
+        out[un] = mergeUserForSave(disk[un], users[un]);
+    }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(out, null, 2));
+    for (const un of Object.keys(users)) {
+        if (out[un]) users[un] = out[un];
+    }
 }
 
 function ensureHabilidadLocal(user) {
