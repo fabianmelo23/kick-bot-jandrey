@@ -22,6 +22,8 @@ function panelCacheQuery() {
 const COOLDOWN_TIME = 2 * 60 * 60 * 1000;
 const REMOTE_API_URL = process.env.REMOTE_API_URL || "";
 const REMOTE_API_TOKEN = process.env.REMOTE_API_TOKEN || "";
+/** API del Express local (mismo users.json que el panel); siempre se consulta además del remoto. */
+const LOCAL_USER_API = process.env.LOCAL_USER_API || "http://127.0.0.1:3000";
 const RANKING_URL = process.env.RANKING_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 const PROFILE_URL = process.env.PROFILE_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
 
@@ -90,22 +92,6 @@ function ensureUser(username) {
     if (u.habilidadProgreso === undefined) u.habilidadProgreso = 0;
     if (u.puntosEstadistica === undefined) u.puntosEstadistica = 0;
     ensureHabilidadLocal(u);
-}
-
-function mergeDuelStats(username, remoteUser) {
-    loadData();
-    ensureUser(username);
-    const defaults = defaultStats();
-    const localStats = users[username]?.stats;
-    const remoteStats = remoteUser?.stats;
-    const out = { ...defaults };
-    for (const key of Object.keys(defaults)) {
-        const lv = localStats != null ? Number(localStats[key]) : NaN;
-        const rv = remoteStats != null ? Number(remoteStats[key]) : NaN;
-        if (Number.isFinite(lv)) out[key] = lv;
-        if (Number.isFinite(rv)) out[key] = rv;
-    }
-    return out;
 }
 
 /* =========================
@@ -197,14 +183,58 @@ function getRankingTop(limit = 5) {
     return `🏅 Top ${entries.length}: ${top}`;
 }
 
-async function getRemoteUser(username) {
-    if (!REMOTE_API_URL) return null;
-    try {
-        const res = await axios.get(`${REMOTE_API_URL.replace(/\/+$/, "")}/user/${encodeURIComponent(username)}`, { timeout: 8000 });
-        return res?.data || null;
-    } catch {
-        return null;
+/**
+ * Stats para el overlay: mezcla archivo del bot + GET /user en Render + GET /user en Express local.
+ * Por stat usa el máximo (evita vida 30 del remoto si el panel ya guardó 31 en otro origen).
+ */
+async function fetchDuelPlayer(username) {
+    const u = String(username || "").toLowerCase();
+    loadData();
+    ensureUser(u);
+    const localRow = users[u] || {};
+
+    const fromApi = [];
+    if (REMOTE_API_URL) {
+        try {
+            const res = await axios.get(
+                `${REMOTE_API_URL.replace(/\/+$/, "")}/user/${encodeURIComponent(u)}`,
+                { timeout: 8000 }
+            );
+            if (res?.data && typeof res.data === "object") fromApi.push(res.data);
+        } catch {}
     }
+    try {
+        const res = await axios.get(
+            `${LOCAL_USER_API.replace(/\/+$/, "")}/user/${encodeURIComponent(u)}`,
+            { timeout: 4000 }
+        );
+        if (res?.data && typeof res.data === "object") fromApi.push(res.data);
+    } catch {}
+
+    const defaults = defaultStats();
+    const stats = { ...defaults };
+    for (const key of Object.keys(defaults)) {
+        const vals = [Number(defaults[key])];
+        if (localRow.stats && Number.isFinite(Number(localRow.stats[key]))) {
+            vals.push(Number(localRow.stats[key]));
+        }
+        for (const row of fromApi) {
+            if (row.stats && Number.isFinite(Number(row.stats[key]))) {
+                vals.push(Number(row.stats[key]));
+            }
+        }
+        stats[key] = Math.max(...vals);
+    }
+
+    let nivel = Number(localRow.nivel) || 1;
+    let avatar = localRow.avatar || DEFAULT_AVATAR;
+    for (const row of fromApi) {
+        const n = Number(row.nivel);
+        if (Number.isFinite(n) && n > nivel) nivel = n;
+        if (row.avatar && String(row.avatar).trim()) avatar = row.avatar;
+    }
+
+    return { avatar, nivel, stats };
 }
 
 /* =========================
@@ -265,19 +295,19 @@ async function duel(page, user1, user2) {
     ensureUser(user1);
     ensureUser(user2);
 
-    const remote1 = await getRemoteUser(user1);
-    const remote2 = await getRemoteUser(user2);
+    const p1 = await fetchDuelPlayer(user1);
+    const p2 = await fetchDuelPlayer(user2);
     const seed = Date.now();
 
     await axios.post("http://localhost:3000/duelo", {
         jugador1: user1,
         jugador2: user2,
-        avatar1: remote1?.avatar || users[user1].avatar || DEFAULT_AVATAR,
-        avatar2: remote2?.avatar || users[user2].avatar || DEFAULT_AVATAR,
-        nivel1: Number(remote1?.nivel ?? users[user1].nivel ?? 1) || 1,
-        nivel2: Number(remote2?.nivel ?? users[user2].nivel ?? 1) || 1,
-        stats1: mergeDuelStats(user1, remote1),
-        stats2: mergeDuelStats(user2, remote2),
+        avatar1: p1.avatar,
+        avatar2: p2.avatar,
+        nivel1: p1.nivel,
+        nivel2: p2.nivel,
+        stats1: p1.stats,
+        stats2: p2.stats,
         seed
     });
 
