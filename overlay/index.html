@@ -164,13 +164,13 @@ async function iniciarDuelo(d) {
 
     const rng = mulberry32(seed >>> 0);
 
-    function vidaMax(stats, nivel) {
+    function vidaMax(stats) {
         const base = Number(stats?.vida || 30);
-        return Math.max(1, base + Math.max(0, (nivel - 1)) * 5);
+        return Math.max(1, base);
     }
 
-    let hp1 = vidaMax(s1, nivel1);
-    let hp2 = vidaMax(s2, nivel2);
+    let hp1 = vidaMax(s1);
+    let hp2 = vidaMax(s2);
     const max1 = hp1;
     const max2 = hp2;
 
