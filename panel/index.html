@@ -540,6 +540,7 @@
       try {
         const res = await fetch(`/api/profile/${encodeURIComponent(USER)}/spend-stat`, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ stat })
         });
@@ -548,7 +549,16 @@
           setStatus(data?.error || "No se pudo aplicar.", "error");
           return;
         }
-        profile = data.user;
+        const bust = Date.now();
+        const check = await fetch(`/api/profile/${encodeURIComponent(USER)}?v=${bust}`, {
+          credentials: "include"
+        });
+        const fromDisk = await check.json();
+        if (check.ok && fromDisk && !fromDisk.error && fromDisk.stats) {
+          profile = fromDisk;
+        } else {
+          profile = data.user;
+        }
         renderProfile();
         renderSkins();
         setStatus("Estadística aumentada.", "ok");

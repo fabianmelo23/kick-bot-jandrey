@@ -433,8 +433,11 @@ app.get("/user/:username", (req, res) => {
     const users = readUsers();
     const user = req.params.username.toLowerCase();
 
+    const existed = Boolean(users[user]);
     ensureUser(users, user);
-    saveUsers(users);
+    if (!existed) {
+        saveUsers(users);
+    }
 
     res.json(users[user]);
 });
@@ -446,8 +449,11 @@ app.get("/api/profile/:username", requireUserSession, (req, res) => {
     const users = readUsers();
     const username = req.params.username.toLowerCase();
 
+    const existed = Boolean(users[username]);
     ensureUser(users, username);
-    saveUsers(users);
+    if (!existed) {
+        saveUsers(users);
+    }
 
     const u = users[username];
     return res.json(publicProfileUser(u, username));
@@ -506,7 +512,13 @@ app.post("/api/profile/:username/spend-stat", requireUserSession, (req, res) => 
 
     saveUsers(users);
 
-    return res.json({ ok: true, user: publicProfileUser(u, username) });
+    const persisted = readUsers();
+    const uOut = persisted[username];
+    if (!uOut) {
+        return res.status(500).json({ error: "No se pudo leer el perfil guardado" });
+    }
+    ensureStats(uOut);
+    return res.json({ ok: true, user: publicProfileUser(uOut, username) });
 });
 
 // Public: allow selecting a skin without token (stats remain protected)
