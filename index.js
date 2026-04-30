@@ -84,6 +84,20 @@ function mergeUserForSave(diskRow, memRow) {
     return out;
 }
 
+/** Igual que en server: todo usuario debe tener stats; si falta, no podemos fusionar bien con el panel. */
+function ensureStatsLocal(user) {
+    if (!user || typeof user !== "object") return;
+    if (!user.stats || typeof user.stats !== "object") {
+        user.stats = defaultStats();
+        return;
+    }
+    const defs = defaultStats();
+    for (const k of Object.keys(defs)) {
+        const v = Number(user.stats[k]);
+        user.stats[k] = Number.isFinite(v) ? v : defs[k];
+    }
+}
+
 let users = {};
 let duelCooldown = {};
 
@@ -93,19 +107,22 @@ let duelCooldown = {};
 function loadData() {
     if (fs.existsSync(DATA_FILE)) {
         users = JSON.parse(fs.readFileSync(DATA_FILE));
+        for (const un of Object.keys(users)) {
+            ensureStatsLocal(users[un]);
+        }
     }
 }
 
 function saveData() {
-    let disk = {};
+    let diskFresh = {};
     if (fs.existsSync(DATA_FILE)) {
         try {
-            disk = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+            diskFresh = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
         } catch {}
     }
-    const out = { ...disk };
+    const out = { ...diskFresh };
     for (const un of Object.keys(users)) {
-        out[un] = mergeUserForSave(disk[un], users[un]);
+        out[un] = mergeUserForSave(diskFresh[un], users[un]);
     }
     fs.writeFileSync(DATA_FILE, JSON.stringify(out, null, 2));
     for (const un of Object.keys(users)) {
@@ -134,7 +151,8 @@ function ensureUser(username) {
             nivel: 1,
             avatar: DEFAULT_AVATAR,
             habilidadProgreso: 0,
-            puntosEstadistica: 0
+            puntosEstadistica: 0,
+            stats: defaultStats()
         };
         saveData();
         return;
@@ -142,6 +160,7 @@ function ensureUser(username) {
     const u = users[username];
     if (u.habilidadProgreso === undefined) u.habilidadProgreso = 0;
     if (u.puntosEstadistica === undefined) u.puntosEstadistica = 0;
+    ensureStatsLocal(u);
     ensureHabilidadLocal(u);
 }
 
