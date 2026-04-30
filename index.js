@@ -92,6 +92,22 @@ function ensureUser(username) {
     ensureHabilidadLocal(u);
 }
 
+function mergeDuelStats(username, remoteUser) {
+    loadData();
+    ensureUser(username);
+    const defaults = defaultStats();
+    const localStats = users[username]?.stats;
+    const remoteStats = remoteUser?.stats;
+    const out = { ...defaults };
+    for (const key of Object.keys(defaults)) {
+        const lv = localStats != null ? Number(localStats[key]) : NaN;
+        const rv = remoteStats != null ? Number(remoteStats[key]) : NaN;
+        if (Number.isFinite(lv)) out[key] = lv;
+        if (Number.isFinite(rv)) out[key] = rv;
+    }
+    return out;
+}
+
 /* =========================
    RPG
 ========================= */
@@ -260,8 +276,8 @@ async function duel(page, user1, user2) {
         avatar2: remote2?.avatar || users[user2].avatar || DEFAULT_AVATAR,
         nivel1: Number(remote1?.nivel ?? users[user1].nivel ?? 1) || 1,
         nivel2: Number(remote2?.nivel ?? users[user2].nivel ?? 1) || 1,
-        stats1: remote1?.stats || defaultStats(),
-        stats2: remote2?.stats || defaultStats(),
+        stats1: mergeDuelStats(user1, remote1),
+        stats2: mergeDuelStats(user2, remote2),
         seed
     });
 
@@ -291,7 +307,7 @@ async function duel(page, user1, user2) {
     addPoints(perdedor, -1, false);
     const statGanados = addHabilidadDuelWin(ganador);
 
-    await sendMessage(page, `🏆 ${ganador} ganó vs ${perdedor} (+5 / -1 pts)`);
+    await sendMessage(page, `🏆 ${ganador} (+5) ganó vs ${perdedor} (-1)`);
 
     if (statGanados > 0) {
         const extra =
