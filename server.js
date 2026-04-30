@@ -90,6 +90,7 @@ const filePath = USERS_FILE;
 
 function ensureUsersFileExists() {
     try {
+        console.log("🗄️ USERS_FILE:", filePath);
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
