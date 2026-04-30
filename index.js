@@ -38,6 +38,9 @@ function localApiBases() {
 function getDuelServerOrigin() {
     const d = process.env.DUEL_SERVER_URL && String(process.env.DUEL_SERVER_URL).trim();
     if (d) return d.replace(/\/+$/, "");
+    // If not explicitly set, prefer REMOTE_API_URL (keeps overlay + duel on Render).
+    const r = process.env.REMOTE_API_URL && String(process.env.REMOTE_API_URL).trim();
+    if (r) return r.replace(/\/+$/, "");
     return localApiBases()[0];
 }
 const RANKING_URL = process.env.RANKING_URL || (REMOTE_API_URL ? REMOTE_API_URL.replace(/\/+$/, "") : "https://kick-bot-jandrey-3.onrender.com");
@@ -367,11 +370,14 @@ async function duel(page, user1, user2) {
     ensureUser(user1);
     ensureUser(user2);
 
+    const duelOrigin = getDuelServerOrigin();
+    console.log(`⚔️ Enviando duelo a: ${duelOrigin}`);
+
     const p1 = await fetchDuelPlayer(user1);
     const p2 = await fetchDuelPlayer(user2);
     const seed = Date.now();
 
-    await axios.post(`${getDuelServerOrigin()}/duelo`, {
+    await axios.post(`${duelOrigin}/duelo`, {
         jugador1: user1,
         jugador2: user2,
         avatar1: p1.avatar,
@@ -390,7 +396,7 @@ async function duel(page, user1, user2) {
 
         while (Date.now() - startedAt < timeoutMs) {
             try {
-                const res = await axios.get(`${getDuelServerOrigin()}/duelo`);
+                const res = await axios.get(`${duelOrigin}/duelo`);
                 const g = res?.data?.ganador;
                 if (g) return String(g).toLowerCase();
             } catch {}
