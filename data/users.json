@@ -3,7 +3,9 @@
     "puntos": 120,
     "xp": 20,
     "nivel": 2,
-    "avatar": "http://localhost:3000/overlay/avatar.png"
+    "avatar": "http://localhost:3000/overlay/avatar.png",
+    "habilidadProgreso": 0,
+    "puntosEstadistica": 0
   },
   "camilo_p14": {
     "puntos": 5,
@@ -39,7 +41,9 @@
     "puntos": 15,
     "xp": 15,
     "nivel": 1,
-    "avatar": "http://localhost:3000/overlay/avatar.png"
+    "avatar": "http://localhost:3000/overlay/avatar.png",
+    "habilidadProgreso": 49,
+    "puntosEstadistica": 0
   },
   "randai": {
     "puntos": 20,
@@ -48,9 +52,30 @@
     "avatar": "http://localhost:3000/overlay/avatar.png"
   },
   "thuunderr": {
-    "puntos": 20,
-    "xp": 20,
+    "puntos": 30,
+    "xp": 30,
     "nivel": 1,
     "avatar": "http://localhost:3000/overlay/avatar.png"
+  },
+  "testpanel": {
+    "puntos": 0,
+    "xp": 0,
+    "nivel": 1,
+    "avatar": "/overlay/avatar.svg",
+    "stats": {
+      "vida": 31,
+      "fuerza": 3,
+      "defensa": 2,
+      "agilidad": 2,
+      "velocidad": 2
+    },
+    "inventory": {
+      "skins": [
+        "default"
+      ],
+      "armas": [],
+      "mascotas": []
+    },
+    "selectedSkin": "default"
   }
 }
