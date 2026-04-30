@@ -609,15 +609,25 @@ let dueloActual = {
     jugador2: null,
     avatar1: null,
     avatar2: null,
+    nivel1: 1,
+    nivel2: 1,
+    stats1: null,
+    stats2: null,
     seed: null,
     ganador: null
 };
 
 app.post("/duelo", (req, res) => {
 
-    const { jugador1, jugador2, avatar1, avatar2, seed } = req.body;
+    const { jugador1, jugador2, avatar1, avatar2, nivel1, nivel2, stats1, stats2, seed } = req.body;
     const id = Date.now();
     const duelSeed = Number.isFinite(Number(seed)) ? Number(seed) : id;
+
+    // sanitize stats to avoid undefined / bad shapes
+    const s1 = sanitizeStats(stats1, defaultStats());
+    const s2 = sanitizeStats(stats2, defaultStats());
+    const n1 = Number.isFinite(Number(nivel1)) ? Math.max(1, Number(nivel1)) : 1;
+    const n2 = Number.isFinite(Number(nivel2)) ? Math.max(1, Number(nivel2)) : 1;
 
     dueloActual = {
         id,
@@ -626,6 +636,10 @@ app.post("/duelo", (req, res) => {
         jugador2,
         avatar1,
         avatar2,
+        nivel1: n1,
+        nivel2: n2,
+        stats1: s1,
+        stats2: s2,
         seed: duelSeed,
         ganador: null
     };
