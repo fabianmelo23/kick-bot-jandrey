@@ -260,21 +260,27 @@ function getRankingTop(limit = 5) {
  * Stats para el overlay: GET /user en Express local primero (ahí guarda el panel), luego Render,
  * más el archivo del bot. Por stat usa el máximo entre fuentes.
  */
-async function fetchDuelPlayer(username) {
+async function fetchDuelPlayer(username, duelOrigin) {
     const u = String(username || "").toLowerCase();
     loadData();
     ensureUser(u);
     const localRow = users[u] || {};
 
     const fromApi = [];
-    for (const base of localApiBases()) {
-        try {
-            const res = await axios.get(`${base}/user/${encodeURIComponent(u)}`, { timeout: 5000 });
-            if (res?.data && typeof res.data === "object") {
-                fromApi.push(res.data);
-                break;
-            }
-        } catch {}
+    const duelBase = String(duelOrigin || "").replace(/\/+$/, "");
+    const remoteBase = String(REMOTE_API_URL || "").replace(/\/+$/, "");
+    const shouldUseOnlyRemote = Boolean(remoteBase) && duelBase === remoteBase;
+
+    if (!shouldUseOnlyRemote) {
+        for (const base of localApiBases()) {
+            try {
+                const res = await axios.get(`${base}/user/${encodeURIComponent(u)}`, { timeout: 5000 });
+                if (res?.data && typeof res.data === "object") {
+                    fromApi.push(res.data);
+                    break;
+                }
+            } catch {}
+        }
     }
     if (REMOTE_API_URL) {
         try {
@@ -290,7 +296,7 @@ async function fetchDuelPlayer(username) {
     const stats = { ...defaults };
     for (const key of Object.keys(defaults)) {
         const vals = [Number(defaults[key])];
-        if (localRow.stats && Number.isFinite(Number(localRow.stats[key]))) {
+        if (!shouldUseOnlyRemote && localRow.stats && Number.isFinite(Number(localRow.stats[key]))) {
             vals.push(Number(localRow.stats[key]));
         }
         for (const row of fromApi) {
@@ -301,8 +307,8 @@ async function fetchDuelPlayer(username) {
         stats[key] = Math.max(...vals);
     }
 
-    let nivel = Number(localRow.nivel) || 1;
-    let avatar = localRow.avatar || DEFAULT_AVATAR;
+    let nivel = shouldUseOnlyRemote ? 1 : (Number(localRow.nivel) || 1);
+    let avatar = shouldUseOnlyRemote ? DEFAULT_AVATAR : (localRow.avatar || DEFAULT_AVATAR);
     for (const row of fromApi) {
         const n = Number(row.nivel);
         if (Number.isFinite(n) && n > nivel) nivel = n;
@@ -373,8 +379,8 @@ async function duel(page, user1, user2) {
     const duelOrigin = getDuelServerOrigin();
     console.log(`⚔️ Enviando duelo a: ${duelOrigin}`);
 
-    const p1 = await fetchDuelPlayer(user1);
-    const p2 = await fetchDuelPlayer(user2);
+    const p1 = await fetchDuelPlayer(user1, duelOrigin);
+    const p2 = await fetchDuelPlayer(user2, duelOrigin);
     const seed = Date.now();
 
     await axios.post(`${duelOrigin}/duelo`, {
