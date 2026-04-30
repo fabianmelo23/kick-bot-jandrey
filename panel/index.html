@@ -568,8 +568,7 @@
       const xp = Number(profile.xp) || 0;
       const pct = Math.max(0, Math.min(100, (xp / maxXP) * 100));
       elNivel.textContent = `Nivel ${profile.nivel}`;
-      const ptsRank = Number(profile.puntos) || 0;
-      elXpText.textContent = `${ptsRank} pts · ${xp}/${maxXP}`;
+      elXpText.textContent = `${xp}/${maxXP}`;
       elXpBar.style.width = `${pct}%`;
 
       const hProg = Math.max(0, Math.min(49, Number(profile.habilidadProgreso) || 0));
