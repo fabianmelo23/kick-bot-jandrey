@@ -73,9 +73,11 @@ body { margin:0; background:transparent; overflow:hidden; font-family:'Orbitron'
 
 .damage {
     position:absolute;
-    color:red;
-    font-size:22px;
-    animation:float 0.6s ease-out;
+    color:#ff2a2a;
+    font-size:34px;
+    font-weight:800;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.65), 0 0 12px rgba(255,42,42,0.55);
+    animation:float 0.9s ease-out;
 }
 
 @keyframes float {
@@ -204,7 +206,7 @@ async function iniciarDuelo(d) {
         d.style.top=y+"px";
         d.innerText="-"+val;
         document.body.appendChild(d);
-        setTimeout(()=>d.remove(),600);
+        setTimeout(()=>d.remove(),900);
     }
 
     update();
@@ -233,20 +235,21 @@ async function iniciarDuelo(d) {
 
     while(hp1>0 && hp2>0){
 
-        await sleep(350);
+        // Slower pacing: let hits read clearly
+        await sleep(750);
 
         if(attackerIsP1()){
             const val = computeDamage(s1, s2);
             p1.classList.add("attack-left");
             hp2 -= val;
             dmg(p2.offsetLeft+100,260,val);
-            setTimeout(()=>p1.classList.remove("attack-left"),200);
+            setTimeout(()=>p1.classList.remove("attack-left"),320);
         }else{
             const val = computeDamage(s2, s1);
             p2.classList.add("attack-right");
             hp1 -= val;
             dmg(p1.offsetLeft+100,260,val);
-            setTimeout(()=>p2.classList.remove("attack-right"),200);
+            setTimeout(()=>p2.classList.remove("attack-right"),320);
         }
 
         if(hp1<0) hp1=0;
