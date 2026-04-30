@@ -431,7 +431,6 @@
             </div>
             <div class="skillBar"><div id="skillBarFill"></div></div>
             <div class="hint" id="skillBankHint" style="margin-top:6px;font-size:11px;line-height:1.35;"></div>
-            <div class="hint" id="pointsText">Puntos ranking: 0</div>
           </div>
         </div>
 
@@ -495,7 +494,6 @@
     const elSkillText = document.getElementById("skillText");
     const elSkillBarFill = document.getElementById("skillBarFill");
     const elSkillBankHint = document.getElementById("skillBankHint");
-    const elPointsText = document.getElementById("pointsText");
     const elStats = document.getElementById("stats");
     const elSkinsGrid = document.getElementById("skinsGrid");
     const elStatus = document.getElementById("status");
@@ -570,7 +568,8 @@
       const xp = Number(profile.xp) || 0;
       const pct = Math.max(0, Math.min(100, (xp / maxXP) * 100));
       elNivel.textContent = `Nivel ${profile.nivel}`;
-      elXpText.textContent = `${xp}/${maxXP}`;
+      const ptsRank = Number(profile.puntos) || 0;
+      elXpText.textContent = `${ptsRank} pts · ${xp}/${maxXP}`;
       elXpBar.style.width = `${pct}%`;
 
       const hProg = Math.max(0, Math.min(49, Number(profile.habilidadProgreso) || 0));
@@ -583,8 +582,6 @@
           ? `Tienes ${bank} punto(s) para gastar. Pulsa + delante de la stat que quieras subir.`
           : "Cada victoria en duelo suma 1 a esta barra. Al llegar a 50 obtienes 1 punto para subir una estadística.";
       }
-
-      elPointsText.textContent = `Puntos ranking: ${Number(profile.puntos) || 0}`;
 
       const s = profile.stats || {};
       const canSpend = bank > 0;
