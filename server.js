@@ -643,6 +643,31 @@ app.post("/api/admin/grant-stat-points", requireToken, (req, res) => {
     return res.json({ ok: true, user: publicProfileUser(u, username) });
 });
 
+app.post("/api/admin/reset-all", requireToken, (req, res) => {
+    const users = readUsers();
+
+    for (const username of Object.keys(users)) {
+        const u = users[username];
+        if (!u || typeof u !== "object") continue;
+
+        u.puntos = 0;
+        u.xp = 0;
+        u.nivel = 1;
+
+        u.habilidadProgreso = 0;
+        u.puntosEstadistica = 0;
+
+        u.stats = defaultStats();
+        u.inventory = defaultInventory();
+        u.selectedSkin = "default";
+        u.avatar = skinToAvatarUrl("default");
+    }
+
+    saveUsers(users);
+
+    return res.json({ ok: true, count: Object.keys(users).length });
+});
+
 /* =========================
    DUELO (CON ID ÚNICO)
 ========================= */
