@@ -84,7 +84,30 @@ function requireBotToken(req, res, next) {
 /* =========================
    USERS
 ========================= */
-const filePath = path.join(__dirname, "data", "users.json");
+const DEFAULT_USERS_FILE = path.join(__dirname, "data", "users.json");
+const USERS_FILE = (process.env.USERS_FILE || "").trim() || DEFAULT_USERS_FILE;
+const filePath = USERS_FILE;
+
+function ensureUsersFileExists() {
+    try {
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+        if (fs.existsSync(filePath)) return;
+
+        // On first boot with Persistent Disk, seed it from repo file (if present).
+        if (filePath !== DEFAULT_USERS_FILE && fs.existsSync(DEFAULT_USERS_FILE)) {
+            fs.copyFileSync(DEFAULT_USERS_FILE, filePath);
+            return;
+        }
+
+        fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
+    } catch (e) {
+        console.error("❌ No se pudo inicializar USERS_FILE:", e?.message || e);
+    }
+}
+
+ensureUsersFileExists();
 
 function readUsers() {
     if (!fs.existsSync(filePath)) return {};
