@@ -623,6 +623,27 @@ app.post("/api/duel/habilidad-win", requireToken, (req, res) => {
 });
 
 /* =========================
+   ADMIN (grant stat points)
+========================= */
+app.post("/api/admin/grant-stat-points", requireToken, (req, res) => {
+    const username = String(req.body?.username || "").toLowerCase().trim();
+    const amount = Number(req.body?.amount);
+    if (!username) return res.status(400).json({ error: "username requerido" });
+    if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: "amount inválido" });
+
+    const users = readUsers();
+    ensureUser(users, username);
+    const u = users[username];
+
+    u.puntosEstadistica = Math.max(0, Number(u.puntosEstadistica) || 0) + amount;
+    if (u.puntosEstadistica < 0) u.puntosEstadistica = 0;
+
+    saveUsers(users);
+
+    return res.json({ ok: true, user: publicProfileUser(u, username) });
+});
+
+/* =========================
    DUELO (CON ID ÚNICO)
 ========================= */
 let dueloActual = {
