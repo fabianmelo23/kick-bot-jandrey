@@ -86,7 +86,7 @@ function requireBotToken(req, res, next) {
 ========================= */
 const DEFAULT_USERS_FILE = path.join(__dirname, "data", "users.json");
 const USERS_FILE = (process.env.USERS_FILE || "").trim() || DEFAULT_USERS_FILE;
-const filePath = USERS_FILE;
+let filePath = USERS_FILE;
 
 function ensureUsersFileExists() {
     try {
@@ -104,7 +104,23 @@ function ensureUsersFileExists() {
 
         fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
     } catch (e) {
-        console.error("❌ No se pudo inicializar USERS_FILE:", e?.message || e);
+        const msg = String(e?.message || e);
+        console.error("❌ No se pudo inicializar USERS_FILE:", msg);
+
+        // Common on Render when the persistent disk is not attached/mounted:
+        // /var/data won't exist and cannot be created (permission denied).
+        if (filePath !== DEFAULT_USERS_FILE && /EACCES|permission denied/i.test(msg)) {
+            console.error("⚠️ Fallback a DEFAULT_USERS_FILE (disco persistente no montado o sin permisos).");
+            filePath = DEFAULT_USERS_FILE;
+            try {
+                console.log("🗄️ USERS_FILE (fallback):", filePath);
+                const dir = path.dirname(filePath);
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
+            } catch (e2) {
+                console.error("❌ Fallback también falló:", String(e2?.message || e2));
+            }
+        }
     }
 }
 
